@@ -1,0 +1,98 @@
+# pyproject.toml — sl_ads package definition (Phase H reorganisation).
+#
+# This file makes the ``src/sl_ads/`` tree importable as the package
+# ``sl_ads`` and tells pytest where to find tests.  Created during the
+# Phase H reorganisation (cf. ``docs/RENAMING_LOG_PHASE_H.md``) so that
+# future imports look like ``from sl_ads.core.subjective_logic import …``
+# rather than the legacy version-suffixed flat layout.
+#
+# To install in editable mode (recommended during development)::
+#
+#     pip install -e .
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name            = "sl_ads"
+version         = "1.0.0"
+description     = "Subjective-Logic Anomaly Detection System (SL-ADS)."
+readme          = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "C. NAMUR" },
+]
+keywords = [
+    "subjective-logic", "anomaly-detection", "intrusion-detection",
+    "time-series", "fusion", "evidential",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Security",
+]
+dependencies = [
+    # Pinned in requirements.txt for the reproducibility manifest;
+    # only the *minimum* runtime contract is declared here.
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "statsmodels",
+    "joblib",
+    "matplotlib",
+    "prophet",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+]
+notebooks = [
+    "marimo",
+]
+
+[project.scripts]
+# Single-binary entry point for the full pipeline launcher.  Resolves
+# to ``run_pipeline:main`` once the launcher is migrated in Phase 4.
+sl-ads = "run_pipeline:main"
+
+[tool.setuptools]
+py-modules = ["run_pipeline"]
+
+[tool.setuptools.packages.find]
+where    = ["src"]
+include  = ["sl_ads*"]
+exclude  = ["tests*"]
+
+[tool.setuptools.package-data]
+"sl_ads" = ["py.typed"]
+
+# ─────────────────────────────────────────────────────────────────────
+# pytest configuration
+# ─────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion       = "7.0"
+testpaths        = ["tests"]
+python_files     = ["test_*.py"]
+python_classes   = ["Test*"]
+python_functions = ["test_*"]
+# 'not slow' excludes the cross-run consistency tests by default.
+# To run them explicitly: ``pytest -m slow``.
+addopts          = "-v --tb=short -m 'not slow'"
+markers          = [
+    "slow: requires a completed pipeline run on disk under results/",
+]
+filterwarnings   = [
+    # Audit_codex CRIT-01/CRIT-03 escape hatches emit UserWarnings on
+    # purpose; suppress them in test output.
+    "ignore:.*CRIT-01-OVERRIDE.*:UserWarning",
+    "ignore:.*CRIT-03-OVERRIDE.*:UserWarning",
+]

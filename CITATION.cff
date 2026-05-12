@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "SL-ADS: Subjective-Logic Anomaly Detection System"
+abstract: >-
+  An evidence-aware anomaly detection pipeline for network telemetry. The
+  pipeline combines Prophet-style forecasting and reconstruction-baseline
+  residuals into Subjective-Logic opinions, fuses them with Weighted Belief
+  Fusion, applies conflict-aware ageing, and calibrates decisions with
+  EVT/FPR-targeted thresholds. An expert-template-driven qualifier attributes
+  each detection to a cause family.
+authors:
+  - family-names: "Namur"
+    given-names: "Cyril"
+version: "1.0.0"
+license: "MIT"
+date-released: "2026-05-12"
+keywords:
+  - "subjective logic"
+  - "anomaly detection"
+  - "intrusion detection"
+  - "time series"
+  - "evidential fusion"
+references:
+  - type: book
+    authors:
+      - family-names: "Jøsang"
+        given-names: "Audun"
+    title: "Subjective Logic: A Formalism for Reasoning Under Uncertainty"
+    publisher:
+      name: "Springer"
+    year: 2016
+    isbn: "978-3-319-42337-1"

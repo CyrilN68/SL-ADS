@@ -1,0 +1,62 @@
+# Phase H — git-ignore for SL-ADS
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# Editors / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+.codex_manual_tmp/
+.pytest*/
+_pytest*/
+pytest-cache-files-*/
+.testtmp/
+_codex*/
+
+# Pipeline artifacts (large; archived under results/<run_id>/ which is git-ignored)
+outputs/
+results/
+*.pkl
+*.parquet
+
+# Run summary (re-generated each run)
+pipeline_run_summary.json
+
+# Marimo state
+__marimo__/
+
+# Logs
+*.log
+logs/

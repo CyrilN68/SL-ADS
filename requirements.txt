@@ -1,0 +1,41 @@
+# ================================================================
+# requirements.txt — Pipeline SL-ADS (active branch / autre dataset)
+# ================================================================
+# Généré automatiquement 2026-04-21 (PATCH m-05 / F22).
+# Versions figées sur l'environnement ayant produit les résultats
+# publiés (voir MANIFEST.md pour le hash git / dataset).
+#
+# Reproducibilité : utiliser EXACTEMENT ces versions pour toute
+# comparaison numérique (un changement de version de Prophet ou
+# scipy peut altérer la calibration EVT au-delà de la précision
+# rapportée).
+#
+# Python : 3.13.3 (Windows-11-10.0.26200-SP0)
+# ================================================================
+
+# --- Core scientifique ---
+numpy==2.4.4
+pandas==3.0.2
+scipy==1.17.1
+scikit-learn==1.8.0
+statsmodels==0.14.6
+joblib==1.5.3
+
+# --- Modèle Prophet ---
+prophet==1.3.0
+
+# --- Plotting ---
+matplotlib==3.10.9
+
+# --- Optionnels (non requis pour le pipeline principal,
+#     requis pour certains auxiliaires) ---
+# seaborn
+# plotly
+# marimo
+# shap
+# xgboost
+# pmdarima
+# sympy
+# h5py
+# requests
+# tqdm

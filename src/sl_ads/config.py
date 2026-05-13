@@ -572,7 +572,7 @@ CONFIG = {
     # Le système effectue un vrai hard reset (mémoire effacée) sur contradiction forte.
     # Ref : dérivation en §5.2.3 du rapport.
     # CONFLICT_ALPHA : recalculé dynamiquement après CONFIG selon WINDOW_SIZE et SL_PARAM_K.
-    # Valeur provisoire ci-dessous (dataset brésilien W=10, K=3) — sera écrasée en bas du fichier.
+    # Valeur provisoire ci-dessous (RedeRio WINDOW_SIZE=10, SL_PARAM_K=3) — sera écrasée en bas du fichier.
     "CONFLICT_ALPHA": 1.495,
     "LAMBDA_TRANSITION": 0.95,  # mémoire des transitions (nouveau)
 
@@ -707,8 +707,9 @@ CONFIG = {
     # Calculé en fin d'entraînement via proj_atk sur fenêtres normales du train.
     # Variable cible : proj_atk = b_atk + a_atk·u (Jøsang Eq. 3.23).
     # Stocké dans models_pkg['_decision_threshold'] et lu par compute_opinions.
-    # Ref : Ali et al. TISSEC 2013 ; Sun et al. ICML 2024.
-    "FPR_TARGET_DECISION": 0.001,   # Cible : ≤ 1% FP — compense le mismatch EVT in-sample vs calib set hors-train
+    # Ref : voir docs/scientific_deconstruction/REFERENCES.md
+    # (hold-out calibration: Ruff et al. 2021; leakage: Varma & Simon 2006).
+    "FPR_TARGET_DECISION": 0.001,   # Cible : ≤ 0.1% FP — compense le mismatch EVT in-sample vs calib set hors-train
 
     #Exemple de différents seuils sur redeio v9v9v4s avec 1/4 pour threshold time
     #FPR 1.0% (10−2) ➔ Seuil = 0.1318
@@ -729,7 +730,7 @@ CONFIG = {
     # Remplace le prior uniforme a=[1/3,1/3,1/3] par l'estimateur des
     # moments de la concentration Dirichlet sur les données d'entraînement.
     #
-    # Formule (Ferguson 1973 ; Efron & Morris 1973 JASA) :
+    # Formule (Ferguson 1973 ; Robbins 1955/1983 Empirical Bayes) :
     #   a_j(k) = mean_t[ R_j(k,t) ] / W   pour j ∈ {safe, susp, anom}
     #   W = taille fenêtre = 10 (slices de 30s par fenêtre de 5 min)
     #

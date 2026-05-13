@@ -184,7 +184,7 @@ part of the default pytest configuration.
 Several guardrails are intentionally strict:
 
 - The training artifact must contain all expected Prophet and reconstruction
-  leaves. If Prophet fails silently, downstream evidence computation now fails
+  leaves. If Prophet fails silently, downstream evidence computation fails
   instead of producing reconstruction-only metrics.
 - The threshold sidecar records the fusion mode, weighting mode, calibration
   target, and other configuration values used at calibration time.

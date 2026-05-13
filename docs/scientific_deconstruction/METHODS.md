@@ -1,7 +1,7 @@
 # METHODS.md — Formal Inventory of Methods
 
 > Subjective-Logic Anomaly Detection System (SL-ADS), branch `main`, 2026-05-04.
-> Scope: minimal subgraph reachable from `run_pipeline.py` for the **RedeRio** profile (the most complete profile; the other datasets are strict subsets).
+> Scope: minimal subgraph reachable from `run_pipeline.py` for the **RedeRio** profile.
 
 The pipeline is a strict composition of five method families:
 
@@ -26,18 +26,18 @@ The conventions used throughout this document:
 
 ## 0. Pipeline Steps (RedeRio profile, `run_pipeline.py`)
 
-| # | Step name        | Module                                              | Purpose |
-|---|------------------|-----------------------------------------------------|---------|
-| 1 | `train`          | `sl_ads.train.train_models`                         | Fit Prophet + QR(0.5), calibrate EVT thresholds, compute EDP, resolve `RECONST_ATTACK_RELIABILITY` (fixed at `1.0` in the current RedeRio run) and auto-calibrate `DECISION_THRESHOLD`. |
-| 2 | `evidence`       | `sl_ads.train.compute_evidence`                     | Per-window forecast/reconstruction → signed residuals → trapezoidal map → evidence triplets `(P,S,N)`. |
-| 3 | `inject`         | `sl_ads.inject.evidence_level`                      | Overwrite evidence triplets in the test span using the deterministic `INJECTED_ATTACK_CATALOG`. |
-| 4 | `opinions`       | `sl_ads.core.opinions_pipeline`                     | 3-level SL fusion (ageing -> intra-method WBF by method group -> inter-method WBF/ABF/CBF/BCF/projected-CCF/MinBF/MaxBF/hierarchical) -> `detection_results.csv`. |
-| 5 | `eval_injection` | `sl_ads.evaluate.evaluate_injection`                | F1 / FPR / coverage at fixed `δ`, plus threshold sweeps. |
-| 6 | `qualify_sbn`    | `sl_ads.qualify.sbn_qualifier`                      | Per-window cause attribution over 13 attack types via SL-template matching. |
-| 7 | `eval_qualify`   | RedeRio: `sl_ads.evaluate.evaluate_qualify_sbn`; METR-LA: `sl_ads.evaluate.evaluate_qualify_injected`; GECCO-IoT / CESNET-TimeSeries24: step skipped. | Per-attack DR / QP / F1 / F2 / TTQ; novelty AUC-ROC. |
-| 8 | `ablation`       | `sl_ads.ablation.run_ablation`                      | Component sweep (λ, weights, fusion, EDP). |
-| 9 | `compare_if`     | `sl_ads.compare.compare_if_fair`                    | Legacy raw IF pseudo-label agreement; paper-facing add-ons are `compare_no_sl_fair.py` and `compare_raw_baselines_fair.py`. |
-| 10 | `audit`         | `sl_ads.audit.audit_full_dataset`                   | Episode grouping, IoU matching, novelty metrics, Wilson CI on FAR. |
+| #   | Step name        | Module                                                                                                                                                | Purpose                                                                                                                                                                                 |
+| --- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `train`          | `sl_ads.train.train_models`                                                                                                                           | Fit Prophet + QR(0.5), calibrate EVT thresholds, compute EDP, resolve `RECONST_ATTACK_RELIABILITY` (fixed at `1.0` in the current RedeRio run) and auto-calibrate `DECISION_THRESHOLD`. |
+| 2   | `evidence`       | `sl_ads.train.compute_evidence`                                                                                                                       | Per-window forecast/reconstruction → signed residuals → trapezoidal map → evidence triplets `(P,S,N)`.                                                                                  |
+| 3   | `inject`         | `sl_ads.inject.evidence_level`                                                                                                                        | Overwrite evidence triplets in the test span using the deterministic `INJECTED_ATTACK_CATALOG`.                                                                                         |
+| 4   | `opinions`       | `sl_ads.core.opinions_pipeline`                                                                                                                       | 3-level SL fusion (ageing -> intra-method WBF by method group -> inter-method WBF/ABF/CBF/BCF/projected-CCF/MinBF/MaxBF/hierarchical) -> `detection_results_INJECTED.csv` on injected RedeRio runs, or `detection_results.csv` without injection. |
+| 5   | `eval_injection` | `sl_ads.evaluate.evaluate_injection`                                                                                                                  | F1 / FPR / coverage at fixed `δ`, plus threshold sweeps.                                                                                                                                |
+| 6   | `qualify_sbn`    | `sl_ads.qualify.sbn_qualifier`                                                                                                                        | Per-window cause attribution over 13 attack types via SL-template matching.                                                                                                             |
+| 7   | `eval_qualify`   | RedeRio: `sl_ads.evaluate.evaluate_qualify_sbn`; METR-LA: `sl_ads.evaluate.evaluate_qualify_injected`; GECCO-IoT / CESNET-TimeSeries24: step skipped. | Per-attack DR / QP / F1 / F2 / TTQ; novelty AUC-ROC.                                                                                                                                    |
+| 8   | `ablation`       | `sl_ads.ablation.run_ablation`                                                                                                                        | Component sweep (λ, weights, fusion, EDP).                                                                                                                                              |
+| 9   | `compare_if`     | `sl_ads.compare.compare_if_fair`                                                                                                                      | Legacy raw IF pseudo-label agreement diagnostic; paper-facing add-ons are `compare_no_sl_fair.py` and `compare_raw_baselines_fair.py`.                                                   |
+| 10  | `audit`          | `sl_ads.audit.audit_full_dataset`                                                                                                                     | Episode grouping, IoU matching, novelty metrics, Wilson CI on FAR.                                                                                                                      |
 
 ---
 
@@ -57,7 +57,7 @@ The conventions used throughout this document:
 | **R² estimation** | Time-series rolling-origin cross-validation via `prophet.diagnostics.cross_validation(initial='14 days', period='3 days', horizon='1 day')`, then `R²_CV = 1 − MSE/var(y)`. Falls back to in-sample R² with `UserWarning` if CV fails. |
 | **Residual** | `e_t = y_t − ŷ_t` (signed, used downstream by trapezoid map) |
 | **Dependencies** | Stan back-end (cmdstanpy); **stationarity assumption is partial**: `growth='flat'` enforces no long-term trend, valid for 4-week training horizon on a fixed-capacity backbone. |
-| **Downstream impact** | Residual feeds (i) trapezoidal evidence map, (ii) EVT threshold calibration, (iii) EDP estimation, (iv) `c3_weight=1/iw` for online weighting. |
+| **Downstream impact** | Residual feeds (i) trapezoidal evidence map, (ii) EVT threshold calibration, (iii) EDP estimation, and optional C3 weighting (`prophet_interval` uses `1/iw`; `online_rmse` uses per-window RMSE). Current RedeRio reference uses `C3_WEIGHT_MODE='uniform'`. |
 | **Reference** | Taylor & Letham (2018) *Forecasting at scale*, *American Statistician* 72(1):37-45. |
 
 ### 1.2 Quantile Regression (per-pair structural reconstruction)
@@ -95,9 +95,9 @@ The conventions used throughout this document:
 | **Category** | EVT / tail modelling |
 | **Location** | `src/sl_ads/train/train_models.py::_grimshaw_fit`, `::_pwm_gpd_fit`, `::_evt_threshold`, `::_evt_threshold_pair`, `::calibrate_thresholds_v2`, `::calibrate_thresholds_per_regime_v2` |
 | **Mathematical form** | (i) initial threshold `t₀ = quantile(|e|, EVT_INIT_QUANTILE=0.90)`; (ii) excesses `Y = e[|e|>t₀] − t₀`; (iii) GPD MLE via Grimshaw 1D reduction `g(θ) = θW(θ)(1+V(θ)) − V(θ) = 0` with `V(θ) = mean log(1+θxᵢ)`, `W(θ) = mean xᵢ/(1+θxᵢ)`, returning `(ξ̂, σ̂)`; (iv) GPD quantile (Siffer 2017 Eq. 4): `T_q = t₀ + (σ/ξ)(q_cond^{−ξ} − 1)` if `|ξ|≥1e-10`, else `T_q = t₀ + σ log(1/q_cond)`, with `q_cond = q · n_total / n_peaks`. |
-| **Calibration targets** | `EVT_Q_SUSP_PROPHET=0.02`, `EVT_Q_ATK_PROPHET=0.01`, `EVT_Q_SUSP_RANSAC=0.01`, `EVT_Q_ATK_RANSAC=0.001` (interpreted as **excess** probabilities `P(|e|>T | normal)`). |
+| **Calibration targets** | `EVT_Q_SUSP_PROPHET=0.01`, `EVT_Q_ATK_PROPHET=0.001`, `EVT_Q_SUSP_RANSAC=0.01`, `EVT_Q_ATK_RANSAC=0.001` (legacy key name `RANSAC`; active reconstruction model is QR(0.5)). These are **excess** probabilities `P(|e|>T | normal)`. |
 | **GPD validity check** | Coles 2001 §4.2: `σ̃ = σ − ξ·t₀ > 0`; if not, fall back to empirical quantile. Logged in `_FALLBACK_LOG['evt_sigma_mod']`. |
-| **Fallback hierarchy** | (1) Grimshaw MLE → (2) `scipy.stats.genpareto.fit` (`floc=0`) → (3) empirical quantile `quantile(excesses, 1−q_cond)`. Each fallback recorded in `_FALLBACK_LOG`. |
+| **Fallback hierarchy** | (1) Grimshaw MLE → (2) PWM closed-form fallback → (3) `scipy.stats.genpareto.fit` (`floc=0`) → (4) empirical quantile `quantile(excesses, 1−q_cond)`. Each fallback recorded in `_FALLBACK_LOG`. |
 | **Safety margin** | `T_atk ← max(T_atk, THRESHOLD_SAFETY_MARGIN · T_susp)` with `THRESHOLD_SAFETY_MARGIN=1.10`. |
 | **Declustering** | Disabled (`EVT_DECLUSTER_RUN=−1`); justification: Prophet residuals are pre-whitened. Davison & Smith (1990) declustering implementation present but not active. |
 | **Asymmetric branch** | For `direction='both'`, two independent GPD fits on positive and negative excesses produce `T_susp_pos`, `T_atk_pos`, `T_susp_neg`, `T_atk_neg`. |
@@ -160,7 +160,7 @@ All operators are implemented in `src/sl_ads/core/subjective_logic.py` and consu
 | **Category** | Engineering extension of Jøsang (2016) §16.2.2 Eq. 16.5. |
 | **Location** | `subjective_logic.py::temporal_adaptive_ageing` |
 | **Form** | `K = K(r_prev, r_curr)` (cf. 2.5.1 below); `K_eff = clip(α K, 0, 1)`; `λ_dyn = λ_base · (1 − K_eff)^γ`; `R_{τ+1} = λ_dyn · R_τ + r_{τ+1}`. With `γ=1` (linear), `α=CONFIG['CONFLICT_ALPHA']=1.495`, `λ_base=CONFIG['LAMBDA_DECAY']=0.85`. |
-| **Construction of α** | Computed in `config.py` such that `λ_dyn = 0` exactly when conflict reaches its theoretical maximum: `α = 1/K_max` with `K_max = b_prev_max · b_curr_max = (2W/(2W+K))·(W/(W+K))` for `W=10, K=3`. |
+| **Construction of α** | Computed in `config.py` such that `λ_dyn = 0` exactly when conflict reaches its theoretical maximum: `α = 1/K_max` with `K_max = b_prev_max · b_curr_max`, `b_curr_max = N_win/(N_win+W_SL)`, `b_prev_max = 2N_win/(2N_win+W_SL)`. For RedeRio `N_win=10` and `W_SL=3`, so `α≈1.495`. |
 | **Effect** | Asymmetrically erases accumulated evidence on escalating transitions (calm→alarm, suspect→attack). De-escalation is *not* penalised. |
 | **Ablation hook** | `conflict_aware=False` reverts to fixed Eq. 16.5: `R_{τ+1} = λ_base · R_τ + r_{τ+1}`. |
 | **Reference** | Jøsang (2016) §16.2.2 Eq. 16.5 (base form); the `(1-K)^γ` modulation is engineering. |
@@ -282,7 +282,7 @@ hard-coding another Prophet/Reconstruction branch.
 | **L1 — gate** | open ⇔ `proj_atk(FINAL_SYSTEM) > δ`. |
 | **L2 — group projection** | per group `g` of metrics, `P^g_s = geomean_{m ∈ g} P^m_s` for `s ∈ {Safe, Susp, Anom}` (logarithmic opinion pooling, Genest & Zidek 1986), then renormalised to simplex. |
 | **L3 — template score** | `score(k, g) = Σ_s P^obs_g(s) · c^{k\|g}(s)` where `c^{k\|g}` is an expert-elicited conditional opinion `P(state \| attack_k)` (manually specified at the top of `sbn_qualifier.py`, see the `SBN_PARAMS` block and the per-attack helpers). Two modes: `absolute` (default) and `contrastive` (subtracts per-group mean). |
-| **L4 — evidence aggregation** | `e(k) = Σ_g max(0, score(k,g) − 1/K) · evidence_scale` with `K=3` and `evidence_scale=3.0`; bijection (Def. 3.9) with `W = \|Θ_qual_named\|`. |
+| **L4 — evidence aggregation** | `e(k) = Σ_g max(0, score(k,g) − 1/3) · evidence_scale`; `1/3` is the neutral baseline over `{Safe,Susp,Anom}`, not the number of attack types. Then apply the bijection (Def. 3.9) with `W = \|Θ_qual_named\|`. |
 | **L5 — temporal smoothing (optional)** | Markov transition `b_prev ← T^T b_prev` (kill-chain priors from Hutchins et al. 2011), discounted by `λ^Δt`, fused with current opinion via 2-source WBF (`_wbf_two`). Default `λ_temporal=0.80`, `temporal_weight=0.30`. |
 | **L6 — uncertainty maximisation (optional)** | Eq. 3.27 with `Autre_Anomalie` excluded from the `K` count. |
 | **Top-1 attribution** | `top1 = argmax_k b_final(k)` over named types only (`b_Autre_Anomalie ≡ 0`). |
@@ -306,11 +306,11 @@ hard-coding another Prophet/Reconstruction branch.
 |---|---|
 | **Name** | Surrogate `proj_atk` over hold-out calibration windows |
 | **Location** | `train_models.py::_compute_training_proj_atk` |
-| **Surrogate** | generic production sidecar: additive aggregation across all metrics, then bijection to global opinion with `a_global = mean(a_edp_metric)`. Mode-specific WBF/ABF sidecars can instead replay the deployed fusion stack from persisted opinions for strict ablations. |
+| **Surrogate** | `_compute_training_proj_atk` replays the deployed leaf-to-group structure on hold-out calibration residuals: trapezoid → per-leaf opinion with EDP → intra-method WBF by `FUSION_METHOD_GROUPS` → contextual discount → requested inter-method fusion mode. It is still a surrogate because it is instantaneous and does not replay the temporal ageing state over the full deployment stream. |
 | **Threshold rule** | `δ = quantile(proj_atk_train, 1 − FPR_TARGET_DECISION)` with `FPR_TARGET_DECISION = 0.001` (RedeRio) or `0.01` (METR-LA). |
 | **Sparse-distribution guards** | (i) bijection-floor detection: if `δ ≈ 1/(W+W)` within `CALIB_BIJECTION_FLOOR_TOL=0.01`, replace by `floor·(1−λ_base)·CALIB_AGEING_WIN_FRACTION=0.5`; (ii) if all `proj_atk ≈ 0`, fallback `δ = b_atk_min · 0.5`; (iii) `MIN_DECISION_THRESHOLD` plancher. |
 | **Persistence** | Stored both in `models_pkg['_decision_threshold']` and in a sidecar `<model_name>_threshold.json` so downstream code can read it without unpickling the full PKL (helper `paths.py::get_decision_threshold`). |
-| **Documented caveat (PATCH TASK-45 + TASK-55)** | The generic surrogate can drift from the deployed chain; the sidecar stores the deployed configuration alongside the threshold, downstream evaluators verify sensitive knob matches, and strict fusion comparisons must use mode-specific thresholds. |
+| **Documented caveat (PATCH TASK-45 + TASK-55)** | The sidecar stores the deployed configuration alongside the threshold; downstream evaluators verify sensitive knob matches, and strict fusion comparisons must use mode-specific thresholds. Realised test FPR can still drift because the calibration residual distribution and the temporally-aged deployment stream are not identical. |
 | **Reference** | Ruff et al. (2021) *TPAMI* — anomaly-detection holdout calibration. |
 
 ### 3.3 Optional auto-calibration of `RECONST_ATTACK_RELIABILITY`
@@ -371,7 +371,7 @@ hard-coding another Prophet/Reconstruction branch.
 |---|---|
 | **Same-evidence no-SL** | `compare_no_sl_fair.py` removes the SL bijection, uncertainty, EDP, ageing, and fusion, then scores the same evidence CSV with direct scalar functions over attack evidence `N`. Thresholds are calibrated on persisted train-calib residuals only. |
 | **Raw baselines** | `compare_raw_baselines_fair.py` trains `IsolationForest`, robust modified-z, and PCA reconstruction error directly on raw `ACTIVE_METRICS`, using pre-split normal rows only. It requires `opinions_non_injected/detection_results_RAW.csv` for the SL row and excludes synthetic injection windows because the 13 catalog attacks are injected at evidence level, not raw-traffic level. |
-| **Legacy IF agreement** | `compare_if_fair.py` remains available for raw pseudo-label agreement. Its F1 is not directly comparable to catalog F1 because the label source differs. |
+| **Legacy IF agreement** | `compare_if_fair.py` remains available for raw pseudo-label agreement. Its F1 must not be compared to catalog F1 because the label source differs and, on the current RedeRio artifact, injected SL alarms can be scored against non-injected pseudo-labels. |
 | **Threshold discipline** | All paper-facing baseline thresholds are calibrated on train/pre-split normal data. Test labels are used only for reporting metrics and paired tests. |
 
 ### 4.6 Episode-level audit (`audit_full_dataset.py`)

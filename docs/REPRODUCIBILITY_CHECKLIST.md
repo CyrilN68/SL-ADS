@@ -146,8 +146,3 @@ For the current audit state, start with `docs/AUDIT_CURRENT_STATUS.md`.
       under correlated evidence (Domingos & Pazzani 1997 robustness
       regime).
 
-## Author contact
-
-For reproducibility questions or artifact-evaluation requests:
-- Issues: GitHub issue tracker on this repository
-- Citation: `CITATION.cff` at repository root

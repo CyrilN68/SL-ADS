@@ -200,13 +200,14 @@ class TestArchiveOutputs:
         outputs_manifest = json.loads(
             (outputs / "_run_manifest.json").read_text(encoding="utf-8")
         )
-        assert manifest["source_dir"] == str(active.resolve())
-        assert manifest["current_outputs_dir"] == str(outputs.resolve())
+        assert manifest["source_dir"] == "active_results"
+        assert manifest["current_outputs_dir"] == "outputs"
+        assert manifest["path_format"] == "project-relative"
         assert manifest["source_basename"] == "active_results"
-        assert outputs_manifest["source_dir"] == str(active.resolve())
-        assert outputs_manifest["summary"]["artifact_source_dir"] == str(active.resolve())
-        assert summary["artifact_source_dir"] == str(active.resolve())
-        assert summary["current_outputs_dir"] == str(outputs.resolve())
+        assert outputs_manifest["source_dir"] == "active_results"
+        assert outputs_manifest["summary"]["artifact_source_dir"] == "active_results"
+        assert summary["artifact_source_dir"] == "active_results"
+        assert summary["current_outputs_dir"] == "outputs"
 
     def test_archive_keeps_existing_run_id_immutable(self, tmp_path, monkeypatch):
         """An existing historical run_id must not be overwritten silently."""

@@ -1,6 +1,6 @@
 # Publication Tables - Current Canonical Inputs
 
-**Status date:** 2026-05-12  
+**Status date:** 2026-05-13
 **Scope:** paper-facing table inputs for the complete RedeRio 17-leaf run.
 
 Canonical run:
@@ -165,15 +165,31 @@ main evaluation. Legacy outages-as-normal values are retained only in explicit
 result is an important upper-bound diagnostic, not a reason to claim the full
 system is worse unless the paper explicitly reframes the contribution around
 structural residuals.
+The `MASE-Trust legacy` row is evaluated at the fixed production threshold
+calibrated for the uniform reference; it is a non-drop-in ablation, not a
+separately recalibrated MASE detector. A separately recalibrated MASE run would
+be useful as future diagnostic work, but it is not part of the current headline
+claim.
 
-## 8. Isolation Forest Comparison
+## 8. Legacy Isolation Forest Pseudo-label Diagnostic
 
 Artifact:
 `evaluation_if_fair/fair_if_vs_sl_summary.csv`
 
-This comparison uses consensus pseudo-labels, not the curated attack catalog.
-It measures agreement with statistical anomaly labels and is not directly
-comparable to the catalog F1 above.
+This table is **not a paper-facing attack-detection comparison**. The legacy
+`compare_if_fair.py` step trains Isolation Forest on raw `ACTIVE_METRICS` and,
+when the raw CSV contains a non-empty `label` column, evaluates both systems
+against those consensus/statistical pseudo-labels rather than against the
+curated catalog. In the current RedeRio artifact the SL row is also read from
+the injected detection CSV, so synthetic catalog alarms can be counted against
+non-injected pseudo-labels. This makes the numbers useful for reproducing the
+old diagnostic, but not for comparing catalog F1.
+
+Interpretation: the table answers only "which score agrees more with the raw
+pseudo-labeller under this legacy protocol?" It does **not** answer "which
+system detects the injected catalog attacks?" Use §8bis for the same-evidence
+with-vs-without-SL question, and §8ter for raw-data baselines on raw-valid
+labels.
 
 | System | F1 | FPR | Precision | Recall |
 |---|---:|---:|---:|---:|
@@ -182,8 +198,8 @@ comparable to the catalog F1 above.
 | IF-fpr-matched | 0.349 | 7.537% | 0.514 | 0.264 |
 | IF-k1-descriptive | 0.393 | 53.017% | 0.277 | 0.673 |
 
-Paper wording: IF agrees more with pseudo-labels; this does not prove better
-attack detection. Keep the methodology caveat next to the table.
+Paper stance: keep this as an audit/legacy appendix item if needed. Do not use
+these F1/FPR values in the main results narrative.
 
 ## 8bis. Same Evidence, With vs Without Subjective Logic
 

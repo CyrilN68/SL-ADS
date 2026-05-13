@@ -1,6 +1,6 @@
 # ASSUMPTIONS.md — Critical Inventory of Assumptions
 
-> **Current status as of 2026-05-12.** This document used to list 50+
+> **Current status as of 2026-05-13.** This document used to list 50+
 > assumptions of which 9 were *open* (no enforcement, no measurement).
 > After the hardening passes, the residual open items are limited to those
 > listed in §11.4 below; every other CRITICAL/HIGH assumption now has either a
@@ -167,14 +167,14 @@ invariants, and sidecar validator backward compatibility).
 - **Sensitivity**: HIGH (when `WBF_WEIGHT_MODE='trust_discount'`)
 - **Formal**: 5-fold `TimeSeriesSplit` cross-validated `R²` is positive and proportional to predictive quality.
 - **What breaks**: `trust_discount` mode is documented as pathological on RedeRio (5/12 Prophet metrics with `R²<0`). In the complete run `2e12261d55a8f975`, the harmonised ablation reports Full SL-ADS at `F1-cov=0.879` / `FPR=0.965%` while legacy R² trust-discount falls to `F1-cov=0.628` / `FPR=4.39%` and detects only `12/14` attacks at the calibrated operating point. Production mitigation: `WBF_WEIGHT_MODE='uniform'` (default) ignores R². The pathology is well-documented in `docs/audit/trust_discount_r2_analysis.md`.
-- **2026-05-12 (PATCH D5 refresh) — MASE alternative tested and rejected for default**: a MASE-based trust map (Hyndman-Koehler 2006, `src/sl_ads/stats/mase.py`) is exposed as `WBF_WEIGHT_MODE='mase'` and as the `mase_legacy` ablation run. Empirical evaluation on the canonical RedeRio reference run shows that MASE fails *symmetrically* to R²: at 30 s sampling, Naive-1 persistence dominates most Prophet metrics, and under the canonical alpha=1 trust map the ablation silences the detector (0/14 attacks detected). R² and MASE disagree on which metrics are "trustworthy" and are uncorrelated on this dataset. Both proxies measure benign-regime predictive skill, which is **not** the property required for anomaly-detection trust. `'uniform'` therefore remains the published default; both `'trust_discount'` and `'mase'` are kept as audit-grade ablation modes. Detail: `docs/audit/trust_discount_r2_analysis.md` §4.1.
+- **2026-05-13 (PATCH D5 refresh) — MASE alternative tested and rejected for default**: a MASE-based trust map (Hyndman-Koehler 2006, `src/sl_ads/stats/mase.py`) is exposed as `WBF_WEIGHT_MODE='mase'` and as the `mase_legacy` ablation run. On the canonical RedeRio reference run, the fixed-threshold ablation evaluates MASE at the same production threshold calibrated for the uniform reference (`δ=0.102614`); no attack window crosses that threshold, so the row reports `0/14`. This is evidence that the current MASE trust map is not a drop-in replacement, not a fair separately recalibrated MASE detector. R² and MASE disagree on which metrics are "trustworthy" and are uncorrelated on this dataset. Both proxies measure benign-regime predictive skill, which is **not** the property required for anomaly-detection trust. `'uniform'` therefore remains the published default; both `'trust_discount'` and `'mase'` are kept as audit-grade ablation modes. Detail: `docs/audit/trust_discount_r2_analysis.md` §4.1.
 
 ### A1.9 — DECISION_THRESHOLD calibration surrogate matches the deployed pipeline
 - **Type**: SL-theoretical
 - **Visibility**: Explicit (PATCH TASK-45, sidecar field `calibration_surrogate_caveat`)
 - **Sensitivity**: **CRITICAL**
 - **Location**: `train_models.py::train_models` (sidecar emission) and `train_models.py::_compute_training_proj_atk` (surrogate); enforcement in `paths.py::validate_threshold_sidecar_config` (added 2026-05-06).
-- **Formal**: The legacy generic threshold sidecar is calibrated on a training surrogate, while the deployed chain applies ageing, intra-method WBF, method grouping, inter-method fusion, and optional contextual discount. The two are equal only if these operators are identity transformations on the calibration span.
+- **Formal**: `_compute_training_proj_atk` replays the deployed leaf-to-group fusion structure on hold-out calibration residuals, including EDP, intra-method WBF, method grouping, contextual discount, and the requested inter-method fusion mode. It remains a surrogate because it is instantaneous: it does not replay the temporally-aged state trajectory over the full deployment stream.
 - **What breaks**: Any production change to `LAMBDA_DECAY`, `INTER_METHOD_FUSION`, `WBF_WEIGHT_MODE`, `BALANCE_RATIO`, `CD_ALPHA_ATTACK`, or method-group structure after training can invalidate the calibrated `δ`. The sidecar stores the calibration-time configuration and runtime code now checks sensitive mismatches.
 - **2026-05-06 enforcement**: `paths.validate_threshold_sidecar_config` is now invoked automatically by `paths.get_decision_threshold` and **raises `RuntimeError("[A1.9] Threshold sidecar/config mismatch …")`** when any of the five sensitive knobs disagrees between the runtime CONFIG and the calibration sidecar. Tests `test_sensitive_sidecar_config_match_passes` and `test_sensitive_sidecar_config_mismatch_raises` (in `tests/test_config_and_sidecar.py`) lock this in.
 - **2026-05-12 complete-run reporting**: `eval_threshold_sweep.csv` and `eval_summary_v3.json` expose `fpr_target`, `fpr_ratio_to_target`, and `fpr_target_status`. Status `EXCEEDS_2X_TARGET_RECALIBRATE_OR_JUSTIFY` is emitted whenever the realised FPR exceeds 2× the target. On the complete RedeRio run `2e12261d55a8f975`, the realised global FPR is `0.965%` (`9.65×` the 0.1% target), and canonical ACTIVE reaches `2.903%` (`29.03×`). This is now the paper-facing limitation.
@@ -503,12 +503,12 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 - **Formal**: discordant pair counts `n01, n10`; `χ²_corrected = (|n01 − n10| − 1)² / (n01 + n10)`.
 - **What breaks**: For `n_disc < 25`, the χ² approximation is unreliable; the code falls back to exact binomial (Pembury Smith & Ruxton 2020).
 
-### A7.5 — BCa bootstrap requires iid sampling
+### A7.5 — BCa bootstrap block length is an explicit temporal assumption
 - **Type**: Statistical
-- **Visibility**: Implicit (resampling assumes exchangeability)
+- **Visibility**: Explicit (`bootstrap_bca_ci(..., block_length=...)`)
 - **Sensitivity**: HIGH
-- **Formal**: `n_boot=2000` resamples; jackknife for acceleration.
-- **What breaks**: For autocorrelated time series, naive BCa under-estimates variance. Block bootstrap (Künsch 1989) would be safer; not implemented.
+- **Formal**: `n_boot=1000/2000` resamples; moving-block resampling when `block_length>1`; delete-one-block jackknife for BCa acceleration.
+- **What breaks**: If the chosen block length is too short for the attack/outage autocorrelation scale, variance is still under-estimated. The current RedeRio evaluation uses `block_length=36` windows, derived from the median attack-episode length.
 - **2026-05-06 fix**: `stats/bootstrap_ci.bootstrap_bca_ci` and `paired_bootstrap_bca_ci` now accept `block_length`; when set, they sample contiguous blocks of size `block_length` (moving block bootstrap) and use delete-one-block jackknife for the BCa acceleration. `evaluate_injection.global_threshold_sweep` calls them with `block_length = median attack-episode length` (36 windows on RedeRio). Bootstrap method, resampling mode and block length are persisted in `eval_threshold_sweep.csv` for traceability. Test `test_bca_bootstrap_supports_moving_blocks` locks the API. Effect on RedeRio: F1 95 % CI widens from [0.760, 0.807] (iid) to [0.665, 0.875] (BCa-block 36) — an ~5× wider interval, properly reflecting the auto-correlated nature of windowed evaluation.
 
 ### A7.6 — Baseline thresholds are calibrated off-test
@@ -547,11 +547,11 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ## 9. `src/sl_ads/config.py`
 
-### A9.1 — `CONFLICT_ALPHA` matches the deployed `WINDOW_SIZE` and `W`
+### A9.1 — `CONFLICT_ALPHA` matches the deployed `WINDOW_SIZE` and `SL_PARAM_K`
 - **Type**: Numerical / Engineering
 - **Visibility**: Explicit (recomputed at end of `config.py`, in the dynamic-`CONFLICT_ALPHA` block)
 - **Sensitivity**: HIGH
-- **Formal**: `α = (WINDOW_SIZE+W)·(2·WINDOW_SIZE+W) / (WINDOW_SIZE·2·WINDOW_SIZE)`; for `W=10, K=3`, `α = 1.495`.
+- **Formal**: `α = 1/K_max`, with `K_max = b_prev_max · b_curr_max`, `b_curr_max = WINDOW_SIZE/(WINDOW_SIZE+SL_PARAM_K)`, and `b_prev_max = 2·WINDOW_SIZE/(2·WINDOW_SIZE+SL_PARAM_K)`. For RedeRio `WINDOW_SIZE=10` and `SL_PARAM_K=3`, `α≈1.495`.
 - **What breaks**: Manual override of `CONFLICT_ALPHA` without recomputing breaks the hard-reset property (cf. A4.5).
 
 ### A9.2 — `FPR_TARGET_DECISION` is the operator's chosen FPR budget
@@ -630,14 +630,14 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 |---|---|---|---|
 | A1.2 | GPD validity above `t₀=Q90` | `_pwm_gpd_fit` test suite | PWM fallback inserted between Grimshaw and scipy. |
 | A1.3 | Independent residual exceedances (declustering off) | `outputs/scientific_hardening/evt_declustering_*` | 12/17 metrics insensitive; 5 volatile metrics shift up to 25 % when declustering enabled. Justified for the bulk; documented exception. |
-| A1.5 | Single global EVT threshold per metric | `outputs/scientific_hardening/regime_fpr_*`; PATCH H2 (calendar-aware EVT) implemented as audit-grade opt-in 2026-05-07 | Calendar-aware EVT shipped (`sl_ads/calendar/regime.py`, `train_models.calibrate_thresholds_per_regime_v2`, `compute_evidence` regime dispatch, sidecar A1.9 ``calendar_evt_signature``). **Default `CALENDAR_EVT_ENABLED=False`**. The 2026-05-10 values are diagnostic only because that run was incomplete; the complete rerun must refresh realised regime-FPR. Current paper stance: report realised FPR and keep α-sweep/contextual discount as exploratory future work. |
+| A1.5 | Single global EVT threshold per metric | `outputs/scientific_hardening/regime_fpr_*`; PATCH H2 (calendar-aware EVT) implemented as audit-grade opt-in 2026-05-07 | Calendar-aware EVT shipped (`sl_ads/calendar/regime.py`, `train_models.calibrate_thresholds_per_regime_v2`, `compute_evidence` regime dispatch, sidecar A1.9 ``calendar_evt_signature``). **Default `CALENDAR_EVT_ENABLED=False`**. Complete-run regime-FPR is refreshed in `docs/review/PUBLICATION_TABLES.md`: global FPR 0.965%, ACTIVE 2.903%, QUIET 0.282%. Current paper stance: report realised FPR and keep calendar-aware EVT activation as future/ablation work unless a fresh retrain is run with it enabled. |
 | A3.3 | Injection signatures too clean | `outputs/scientific_hardening/signature_noise_ablation.*` | Linear QP degradation 0.607→0.426 for σ=0→0.20. No collapse. |
 | A6.1 | Naive Bayes group independence | `outputs/scientific_hardening/qualifier_group_correlations*` | 32/66 attack-window pairs HIGH dependence; argmax decision robust, ROC area inflated. |
 | A6.3 | Conditional templates correctness | `outputs/scientific_hardening/qualifier_loo_*` | Other-template robust (Δ +0.02 on average); novelty handling weak (autre_anomalie=0% on self-drop). |
 | A6.4 | `evidence_scale=3.0` heuristic | `outputs/scientific_hardening/sbn_param_sensitivity.*` | Plateau for `[1.0, 10.0]` × `[0.30, 0.99]`; published value at the centre. |
 | A6.5 | `u_raw=0.82` heuristic | (same heatmap) | Plateau as above; same caveat for novel-attack handling (cf. A6.3). |
 | A7.3 | Wilson CI ignores autocorrelation | `axelsson_ppv` Newey-West n_eff | Realised n_eff/n ≈ 12 % on RedeRio; CIs ~3× wider. |
-| A7.5 | BCa bootstrap iid sampling | `bootstrap_ci.bootstrap_bca_ci(block_length=…)` | Block bootstrap (Künsch 1989) wired in; F1 CI widens from 0.760-0.807 (iid) to 0.665-0.875 (BCa-block 36). |
+| A7.5 | BCa bootstrap block length | `bootstrap_ci.bootstrap_bca_ci(block_length=…)` | Moving-block bootstrap (Künsch 1989) wired in; F1 CI widens from 0.760-0.807 (iid) to 0.665-0.875 (BCa-block 36). |
 
 ### 11.3 — Items that are *intentionally* not fixed
 
@@ -653,7 +653,7 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 | ID | Description | Estimated effort | Owner |
 |---|---|---:|---|
 | **TASK-12** | Multi-seed evaluation (5 seeds, mean ± std) on the headline F1/MCC/VUS table — code exists in `src/sl_ads/evaluate/run_multi_seed.py`, just needs to be run (8-10 h compute). | 1 day compute | next compute slot |
-| **A1.5-followup** | _CLOSED_ 2026-05-07 (PATCH H2) — per-regime EVT thresholds (one calibration per calendar bucket) shipped as `CALENDAR_EVT_ENABLED` opt-in. Awaiting next retrain to populate the per-regime block; activation will be evaluated against a re-run of `evaluate_regime_fpr.py` (canonical partition rows). | retrain + re-audit | engineering |
+| **A1.5-followup** | _CLOSED as implementation, open as deployment choice._ Per-regime EVT thresholds shipped as `CALENDAR_EVT_ENABLED` opt-in. The current paper run keeps global EVT; enabling the opt-in requires retrain + `evaluate_regime_fpr.py` re-audit before claiming any FPR improvement. | future retrain + re-audit if activated | engineering |
 | **TKDE/VLDB SOTA baselines** | Run TranAD / Anomaly Transformer / TimesNet under the same RedeRio protocol. Plan emitted at `outputs/scientific_hardening/compare_sota_tsad_plan.json`; needs GPU and external repo cloning. | ~5 days compute + integration | engineering |
 | **NETWORK_OUTAGE_NOV17 boundary case** | _CLOSED for current run._ The old "cold-start" explanation was retracted. Complete-run counts: NOV17 1/3, DEC1617 188/339, REAL_DDOS 184/190; both F1 protocols are reported in `eval_f1_protocol_comparison.csv`. | paper wording only | disclosure |
 | **Heavy-tailed signature noise** (A3.3 refinement) | Current Gaussian perturbation is a lower bound; a Cauchy / Student-t perturbation would probe the qualifier under a more realistic noise model. | ~1 day | future work |

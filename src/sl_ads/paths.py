@@ -197,7 +197,8 @@ def get_decision_threshold(config: dict, up_levels: int = 1) -> float:
 
     Le sidecar est écrit par train_v10.py après auto-calibration EVT/FPR.
     Variable cible : proj_atk = b_atk + a_atk·u  (Jøsang Eq. 3.23).
-    Ref : Ali et al. TISSEC 2013 ; Sun et al. ICML 2024.
+    Ref : see docs/scientific_deconstruction/REFERENCES.md for the
+    hold-out calibration rationale (Ruff et al. 2021; Varma & Simon 2006).
     PATCH TASK-43 (audit_codex MIN-01, 2026-04-27): docstring updated
     to reference the active training entrypoint.
     """

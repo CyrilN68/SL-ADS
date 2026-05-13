@@ -341,6 +341,20 @@ def _copytree_replace(src: str, dst: str) -> None:
     shutil.copytree(src, dst, dirs_exist_ok=False)
 
 
+def _manifest_path(path: str) -> str:
+    """Return a project-relative path for public manifests.
+
+    The run archive can be shared for review; avoid embedding local absolute
+    paths such as ``C:/Users/...`` in JSON artifacts.
+    """
+    abs_path = os.path.abspath(path)
+    try:
+        rel = os.path.relpath(abs_path, BASE_DIR)
+    except ValueError:
+        rel = os.path.basename(os.path.normpath(abs_path))
+    return rel.replace(os.sep, "/")
+
+
 def _write_run_manifest(dst: str, run_id: str, dataset: str, summary: Dict[str, Any],
                         source_dir: str, current_outputs_dir: str) -> None:
     """Write the audit manifest used by both outputs/ and archived runs."""
@@ -349,8 +363,9 @@ def _write_run_manifest(dst: str, run_id: str, dataset: str, summary: Dict[str, 
         "dataset":             dataset,
         "snapshot_utc":        _dt.datetime.now(_dt.timezone.utc).isoformat(),
         "source_basename":     os.path.basename(os.path.normpath(source_dir)),
-        "source_dir":          os.path.abspath(source_dir),
-        "current_outputs_dir": os.path.abspath(current_outputs_dir),
+        "source_dir":          _manifest_path(source_dir),
+        "current_outputs_dir": _manifest_path(current_outputs_dir),
+        "path_format":         "project-relative",
         "summary":             summary,
     }
     with open(os.path.join(dst, "_run_manifest.json"), "w", encoding="utf-8") as f:
@@ -388,8 +403,8 @@ def _archive_outputs(run_id: str, dataset: str, archive_dir: str,
                       f"actual_outputs/ to archive.")
                 return None
 
-    summary["artifact_source_dir"] = os.path.abspath(src)
-    summary["current_outputs_dir"] = os.path.abspath(current_outputs_dir)
+    summary["artifact_source_dir"] = _manifest_path(src)
+    summary["current_outputs_dir"] = _manifest_path(current_outputs_dir)
 
     try:
         _copytree_replace(src, current_outputs_dir)

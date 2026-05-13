@@ -4,7 +4,7 @@
 (based on the SecArtifacts and ACM artifact-review guidelines, 2026).
 **Length** : ≤ 3 pages.
 
-**Status note (2026-05-12).** Values and artifact paths below are tied to the
+**Status note (2026-05-13).** Values and artifact paths below are tied to the
 complete RedeRio 17-leaf run `2e12261d55a8f975`. Historical placeholder claims
 from earlier reconstruction-only or partial runs are superseded.
 
@@ -13,23 +13,34 @@ from earlier reconstruction-only or partial runs are superseded.
 This artifact accompanies *"Subjective-Logic Anomaly Detection for
 Network Telemetry"*.  It is a self-contained Python 3.12 pipeline
 that reproduces every quantitative claim in the paper from the raw
-RedeRio / METR-LA / GECCO-IoT / CESNET-TimeSeries24 captures.  The
-pipeline produces opinion vectors, calibrated decision thresholds,
+RedeRio captures.
+The pipeline produces opinion vectors, calibrated decision thresholds,
 F1 / MCC / AUC metrics with bootstrap CIs, an SBN cause-attribution
 qualifier output, same-evidence no-SL comparators, and raw-data baseline
 comparisons.  Output artifacts are deterministically archived under
 ``results/<run_id>/`` where ``run_id`` is the first 16 hex chars of
-SHA-256(CONFIG ∥ git_sha ∥ dataset).
+SHA-256(CONFIG, git_sha, dataset, launcher metadata). ``outputs/`` and
+``results/`` are generated directories and are git-ignored by default.
 
 ## A.2 Description & requirements
 
 ### A.2.1 Hardware
 
-* CPU : x86_64, ≥ 8 logical cores recommended (Prophet training is
-  the bottleneck).
-* RAM : ≥ 16 GB.
-* Disk : ≥ 4 GB free under the project root (artifacts + per-run
-  archive).
+These are practical sizing notes, not formal minimum requirements. The current
+training code fits Prophet models sequentially and calls Prophet CV with
+``parallel=None``; extra cores help the OS and numerical libraries, but they do
+not make the Prophet loop an 8-way parallel job.
+
+* CPU : x86_64. One modern CPU core is sufficient for correctness; expect the
+  full RedeRio run to take many hours. More cores have limited benefit unless
+  the training loop is parallelised in a future release.
+* RAM : 8 GB is usually enough for tests and smaller runs. 16 GB is a
+  comfortable development target for a full RedeRio run with plots, cached
+  models, and notebooks open.
+* Disk : the complete archived run `2e12261d55a8f975` is about 350 MB, and the
+  active source/mirror pair is about 700 MB. Keep at least 5-10 GB free if
+  retaining multiple archives, trained-model pickles, logs, and multi-seed
+  experiments.
 
 ### A.2.2 Software
 
@@ -59,14 +70,12 @@ Data files are not committed to git.  Place the raw files under
 The pipeline runs offline on archived telemetry; it never opens
 network sockets and does not require root privileges.  The injected
 attacks are synthetic perturbations of evidence vectors (no real
-attack traffic generated).  Ethical use : intended for defensive
-anomaly-detection research; redistribution of derivative
-training-data must comply with the source dataset licences.
+attack traffic generated).
 
 ## A.4 Installation
 
 ```bash
-git clone <anonymised-repository-URL>     # in submission, Zenodo DOI
+git clone https://github.com/CyrilN68/SL-ADS
 cd sl_ads
 python -m venv .venv && source .venv/bin/activate   # or .\.venv\Scripts\activate
 pip install -r requirements.txt
@@ -75,16 +84,18 @@ pytest tests/                              # full suite should PASS on a clean m
 
 ## A.5 Major claims
 
-The paper makes 5 quantitative claims; each is mapped to a
-reproducibility experiment.
+This appendix does not define the final paper's claim count. It maps the
+current reproducibility targets to commands and artifacts; the paper-facing
+quantitative statements are owned by ``docs/review/PUBLICATION_TABLES.md`` and
+``docs/AUDIT_CURRENT_STATUS.md``.
 
-| Claim | Experiment | Estimated time | Hardware |
+| Target | Experiment | Estimated time | Hardware |
 |-------|------------|----------------|----------|
-| C1 - RedeRio detection metrics at the calibrated threshold | E1 (§A.6.1) | several hours | 8-core CPU |
-| C2 - Attack/event coverage under both F1 protocols | E1 (§A.6.1) | included in E1 | - |
-| C3 - Same-evidence SL vs no-SL comparison is leak-free and reported with paired tests | E3 (§A.6.3) | ~1 min | CPU |
-| C4 - Raw-data IF/LOF/OCSVM/SGD-OCSVM/PCA/Robust-Z baselines are reported only on raw-valid protocols | E3 (§A.6.3) | ~3 min | CPU |
-| C5 - Audit tracker current; high-priority findings are resolved or explicitly disclosed | E4 (§A.6.4) | ~6 s | - |
+| R1 - RedeRio detection metrics at the calibrated threshold | E1 (§A.6.1) | several hours | CPU; currently mostly serial |
+| R2 - Attack/event coverage under both F1 protocols | E1 (§A.6.1) | included in E1 | - |
+| R3 - Same-evidence SL vs no-SL comparison is leak-free and reported with paired tests | E3 (§A.6.3) | ~1 min | CPU |
+| R4 - Raw-data IF/LOF/OCSVM/SGD-OCSVM/PCA/Robust-Z baselines are reported only on raw-valid protocols | E3 (§A.6.3) | ~3 min | CPU |
+| R5 - Audit tracker current; high-priority findings are resolved or explicitly disclosed | E4 (§A.6.4) | ~6 s | - |
 
 ## A.6 Evaluation
 
@@ -96,7 +107,8 @@ python run_pipeline.py --dataset RedeRio
 
 * **Expected output**: ``outputs/`` populated with 43 files (CSV +
   PNG); ``results/<run_id>/_run_manifest.json`` with the full
-  exit-summary; metrics printed to stdout.
+  exit-summary; metrics printed to stdout. Future manifests store project-
+  relative paths only, so shared artifacts do not expose local user directories.
 * **Compare to paper** : use the metrics from the current complete run only.
   Record the commit hash, threshold sidecar, both F1 protocol rows
   (`catalog_outages_separate` and `operator_faithful_anomaly`), and output
@@ -201,5 +213,8 @@ required checks.
 
 ## A.9 Version
 
-Software v1.0.0 (Phase H, 2026-04-29).  Historical reorganisation notes are
-archived under ``docs/archive/``.
+Package metadata currently reports software version ``1.0.0``. The current
+paper-facing artifact snapshot is the complete RedeRio run
+``2e12261d55a8f975`` integrated on 2026-05-12 and rechecked on 2026-05-13.
+Phase H was the 2026-04-29 package-layout reorganisation, not the current
+scientific status; its historical notes are archived under ``docs/archive/``.

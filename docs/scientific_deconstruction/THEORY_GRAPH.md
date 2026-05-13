@@ -115,12 +115,12 @@ graph TD
     A_NaiveBayesQual["🔴 A6.1 Naive Bayes: P(g_1,g_2,…|k) ≈ ∏ P(g|k)"]
     A_ExpertPriorsCorrect["🔴 A6.3 SBN_COND_OPINIONS reflect attack truth"]
     A_DRY_Catalog["🔴 A7.7 INJECTED_ATTACK_CATALOG single source"]
-    A_DeltaSurrogate["🔴 A1.9 surrogate ≈ deployed pipeline"]
+    A_DeltaSurrogate["🔴 A1.9 instantaneous threshold surrogate ≈ deployment"]
     A_FixedDelta["🔴 A7.1 fixed δ on test"]
     A_NonInjectedNormal["🔴 A3.2 non-injected = normal"]
     A_InjAfterSplit["🔴 A3.5 catalog after split_date"]
     A_BinomialIID["🔴 A7.3 windows i.i.d. for Wilson CI"]
-    A_BootstrapIID["🔴 A7.5 i.i.d. resampling for BCa"]
+    A_BootstrapIID["🔴 A7.5 block length/exchangeability for BCa"]
 
     %% ---- Edges: residuals → evidence ----
     T_TaylorLetham --> M_Prophet
@@ -263,7 +263,7 @@ graph TD
     A_BinomialIID --> M_AxelssonPPVCode
     T_EfronBCa --> M_BCaBoot
     A_BootstrapIID --> M_BCaBoot
-    T_KunschBlock -.->|preferred| M_BCaBoot
+    T_KunschBlock -->|moving-block resampling| M_BCaBoot
     T_PembBino --> M_McNemar
     T_NeweyWest --> M_ResidCorr
     T_VarmaSimon --> A_FixedDelta
@@ -313,7 +313,7 @@ The trapezoidal heuristic is the **only non-Jøsang transformation** in the lowe
 | 2 | 🟡 Eq. 12.4 BCF (multinomial extension) | `K = Σ_{i≠j} b_A[i]·b_B[j]` |
 | 3 | 🟢 `compute_asymmetric_escalation_conflict` | omits de-escalation cross-products by design |
 | 4 | engineering identity | `K_max = b_prev_max · b_curr_max ⇒ α := 1/K_max` |
-| 5 | 🟢 `temporal_adaptive_ageing` | `λ_dyn = λ_base · (1 − αK)^γ` with `γ=1` |
+| 5 | 🟢 `temporal_adaptive_ageing` | `K_eff=clip(αK,0,1)`; `λ_dyn = λ_base · (1 − K_eff)^γ` with `γ=1` |
 | 6 | 🔴 escalation = "real anomaly", not noise | premise |
 
 Step 6 is the load-bearing claim: the asymmetric design treats escalation as a *signal*, not a transient artefact. The pipeline ships canonical-symmetric (Eq. 12.4) and projected-probability variants for ablation.
@@ -337,8 +337,8 @@ The pipeline switches from CBF (canonical) to WBF (default `INTER_METHOD_FUSION=
 | Hop | Node | Rule |
 |---|---|---|
 | 1 | 🟡 Stone 1974 / Ruff 2021 | hold-out calibration prevents in-sample bias |
-| 2 | 🟢 `_compute_training_proj_atk` | aggregate evidence across metrics, bijection-back |
-| 3 | 🔴 surrogate ≈ deployed pipeline (A1.9) | premise (caveat documented) |
+| 2 | 🟢 `_compute_training_proj_atk` | replay leaf opinions, method groups, contextual discount, and inter-method fusion on hold-out residuals |
+| 3 | 🔴 instantaneous calibration surrogate ≈ temporally-aged deployment (A1.9) | premise (caveat documented) |
 | 4 | 🟡 Eq. 3.23 | `proj_atk` smooth and unimodal |
 | 5 | 🟢 quantile `δ = quantile(proj_atk, 1 − FPR_target)` | empirical inverse-CDF |
 | 6 | sidecar `<model>_threshold.json` | δ persisted, decoupling training from inference |
@@ -370,7 +370,7 @@ The qualifier inherits *all* assumptions of the detection stack plus the additio
 | 4 | 🟡 Newey–West 1987 | autocorrelation-corrected variance |
 | 5 | 🟢 `axelsson_ppv`, `bca`, `mcnemar` | implementations |
 
-The pipeline implements (3) but not block bootstrap (Künsch); residual correlation is checked separately by `stats/residual_correlation.py`. A reviewer should flag whether headline CIs use the full effective-sample-size correction.
+The pipeline implements BCa with moving-block resampling (`block_length` persisted in `eval_threshold_sweep.csv`). Residual correlation is checked separately by `stats/residual_correlation.py`; Wilson-style proportion CIs still rely on an effective-sample-size correction rather than a full temporal model.
 
 ---
 

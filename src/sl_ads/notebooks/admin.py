@@ -1,8 +1,10 @@
-import pathlib
 import marimo
 
 __generated_with = "0.23.0"
-app = marimo.App(width="full", app_title="Admin — Détection & Qualification SL")
+app = marimo.App(
+    width="full",
+    app_title="Admin — Détection & Qualification SL",
+)
 
 
 @app.cell
@@ -14,16 +16,17 @@ def _():
     from plotly.subplots import make_subplots
     import pathlib
     import sys
-    return go, make_subplots, mo, np, pd, pathlib, sys
+
+    return go, make_subplots, mo, np, pathlib, pd, sys
 
 
 @app.cell
 def _(mo):
-    mo.md("# Vue Administrateur — Détection SL + Qualification SBN")
+    mo.md("""
+    # Vue Administrateur — Détection SL + Qualification SBN
+    """)
+    return
 
-
-# ── IMPORT CONFIG (source unique de vérité pour les chemins) ─────────────────
-# Toute modification de VERSION_SUFFIX dans config.py se propage ici.
 
 @app.cell
 def _(pathlib, sys):
@@ -40,20 +43,54 @@ def _(pathlib, sys):
     import importlib as _importlib
     if "sl_ads.config" in sys.modules:
         _importlib.reload(sys.modules["sl_ads.config"])
+    def _has_admin_outputs(path):
+        return (
+            path.is_dir()
+            and (path / "qualif_types_sbn.csv").exists()
+            and (
+                (path / "detection_results_INJECTED.csv").exists()
+                or (path / "detection_results.csv").exists()
+            )
+        )
+
     try:
         from sl_ads.config import CONFIG as _CFG  # noqa: F401
-        # Default to the canonical complete run shipped with the repo.
-        # Replace this path in the UI input below by your own run_id
-        # after running the pipeline locally.
-        RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "results" / "2e12261d55a8f975")
         config_import_ok = True
     except Exception:
-        RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "results")
+        _CFG = {}
         config_import_ok = False
+
+    _candidates = [_PROJ_ROOT / "outputs"]
+    _cfg_results = _CFG.get("RESULTS_DIR") if isinstance(_CFG, dict) else None
+    if _cfg_results:
+        _cfg_path = pathlib.Path(_cfg_results)
+        if not _cfg_path.is_absolute():
+            _cfg_path = (_PROJ_ROOT / _cfg_path).resolve()
+        _candidates.append(_cfg_path)
+    _candidates.append(_PROJ_ROOT / "results" / "2e12261d55a8f975")
+    _results_root = _PROJ_ROOT / "results"
+    if _results_root.exists():
+        _candidates.extend(
+            sorted(
+                [p for p in _results_root.iterdir() if p.is_dir()],
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+        )
+
+    _seen = set()
+    RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "outputs")
+    for _path in _candidates:
+        _key = str(_path)
+        if _key in _seen:
+            continue
+        _seen.add(_key)
+        if _has_admin_outputs(_path):
+            RESULTS_DIR_DEFAULT = str(_path)
+            break
+
     return RESULTS_DIR_DEFAULT, config_import_ok
 
-
-# ── CHARGEMENT ───────────────────────────────────────────────────────────────
 
 @app.cell
 def _(RESULTS_DIR_DEFAULT, mo, pathlib):
@@ -79,8 +116,14 @@ def _(RESULTS_DIR_DEFAULT, mo, pathlib):
 
 
 @app.cell
-def _(det_input, mo, sbn_input):
-    mo.vstack([det_input, sbn_input])
+def _(config_import_ok, det_input, mo, sbn_input):
+    _cfg_msg = (
+        "Configuration importée ; chemins initialisés depuis le run disponible le plus récent."
+        if config_import_ok
+        else "Configuration non importée ; fallback sur les sorties locales disponibles."
+    )
+    mo.vstack([mo.callout(mo.md(_cfg_msg), kind="neutral"), det_input, sbn_input])
+    return
 
 
 @app.cell
@@ -109,7 +152,6 @@ def _(pd, sbn_input):
     return df_sbn, sbn_ok
 
 
-# Auto-détection raw_data
 @app.cell
 def _(det_input, mo, pathlib):
     _dir = pathlib.Path(det_input.value).parent
@@ -118,12 +160,13 @@ def _(det_input, mo, pathlib):
         value=str(_cands[0]) if _cands else "",
         label="raw_data CSV (30s)", full_width=True,
     )
-    return raw_input,
+    return (raw_input,)
 
 
 @app.cell
 def _(mo, raw_input):
     mo.vstack([raw_input])
+    return
 
 
 @app.cell
@@ -150,29 +193,42 @@ def _(det_ok, df_det, df_sbn, mo, raw_data, raw_ok, sbn_ok):
     if raw_ok: _msgs.append(f"raw: **{len(raw_data)} métriques**")
     else: _msgs.append("raw: non chargé (données brutes 30s indisponibles)")
     mo.callout(mo.md(" | ".join(_msgs)), kind="success" if (det_ok and sbn_ok) else "warn")
+    return
 
-
-# ── STRUCTURE MÉTRIQUES ──────────────────────────────────────────────────────
 
 @app.cell
-def _(df_det):
+def _(df_det, df_sbn):
     _all = [c[:-len("_b_safe")] for c in df_det.columns if c.endswith("_b_safe")]
     leaf_metrics = [p for p in _all if not p.startswith("METHODE") and not p.startswith("FINAL")]
     final_key    = next((p for p in _all if p.startswith("FINAL")), None)
 
-    ATTACK_TYPES = ["UDP_FLOOD","SYN_FLOOD","ICMP_FLOOD","DNS_AMP","HTTP_FLOOD",
-                    "SLOWLORIS","PORT_SCAN","DATA_EXFIL","NETWORK_OUTAGE","BGP_HIJACK",
-                    "BOTNET_CC","Autre_Anomalie"]
-
-    # FIX BUG b_sbn_cols : filtrer réellement sur les colonnes présentes (sans "or True")
-    actual_types = [t for t in ATTACK_TYPES if f"b_sbn_{t}" in (df_det.columns.tolist() if len(df_det) else [])]
+    _type_order = [
+        "UDP_FLOOD", "SYN_FLOOD", "ICMP_FLOOD", "DNS_AMP", "HTTP_FLOOD",
+        "SLOWLORIS", "PORT_SCAN", "DATA_EXFIL", "NETWORK_OUTAGE", "BGP_HIJACK",
+        "BOTNET_CC", "NTP_AMP", "BRUTE_FORCE_SSH", "DNS_TUNNELING", "Autre_Anomalie",
+    ]
+    _sbn_cols = [c for c in df_sbn.columns if c.startswith("b_sbn_")]
+    _actual_types = [c[len("b_sbn_"):] for c in _sbn_cols if not c.startswith("b_sbn_raw_")]
+    ATTACK_TYPES = [t for t in _type_order if t in _actual_types]
+    ATTACK_TYPES += [t for t in _actual_types if t not in ATTACK_TYPES]
+    if not ATTACK_TYPES:
+        ATTACK_TYPES = _type_order
 
     TYPE_COLORS = {
         "UDP_FLOOD":"#e74c3c","SYN_FLOOD":"#c0392b","ICMP_FLOOD":"#e67e22",
         "DNS_AMP":"#f39c12","HTTP_FLOOD":"#27ae60","SLOWLORIS":"#16a085",
         "PORT_SCAN":"#2980b9","DATA_EXFIL":"#8e44ad","NETWORK_OUTAGE":"#7f8c8d",
-        "BGP_HIJACK":"#d35400","BOTNET_CC":"#1abc9c","Autre_Anomalie":"#bdc3c7",
+        "BGP_HIJACK":"#d35400","BOTNET_CC":"#1abc9c","NTP_AMP":"#9b59b6",
+        "BRUTE_FORCE_SSH":"#34495e","DNS_TUNNELING":"#2ecc71",
+        "Autre_Anomalie":"#bdc3c7",
     }
+
+    novelty_col = next((c for c in ("novelty_score", "novelty_lr") if c in df_sbn.columns), None)
+
+    def get_novelty(row):
+        if novelty_col and novelty_col in row.index:
+            return float(row.get(novelty_col, 0) or 0)
+        return 0.0
 
     # FIX ROOT BUG raw_data : les colonnes sont déjà au format "prophet_xxx" / "reconst_xxx"
     # (pas "P_xxx" / "R_xxx") — la fonction retourne directement la clé telle quelle.
@@ -186,12 +242,11 @@ def _(df_det):
         return None
 
     raw_key_map = {m: det_to_raw(m) for m in leaf_metrics}
-    return ATTACK_TYPES, TYPE_COLORS, actual_types, det_to_raw, final_key, leaf_metrics, raw_key_map
+    return ATTACK_TYPES, TYPE_COLORS, final_key, get_novelty, leaf_metrics, novelty_col, raw_key_map
 
 
-# Fusion sur timestamp commun
 @app.cell
-def _(df_det, df_sbn, pd):
+def _(df_det, df_sbn):
     if len(df_det) > 0 and len(df_sbn) > 0:
         _sbn_cols = [c for c in df_sbn.columns if c != "timestamp"]
         df_merged = df_det.merge(
@@ -200,14 +255,16 @@ def _(df_det, df_sbn, pd):
         )
     else:
         df_merged = df_det.copy()
-    return df_merged,
+    return (df_merged,)
 
-
-# ── CONTRÔLES ───────────────────────────────────────────────────────────────
 
 @app.cell
 def _(mo):
-    mo.md("---\n## Contrôles")
+    mo.md("""
+    ---
+    ## Contrôles
+    """)
+    return
 
 
 @app.cell
@@ -232,9 +289,8 @@ def _(mo):
 @app.cell
 def _(anomaly_only, is_playing, mo, speed_sel, threshold_sl):
     mo.hstack([is_playing, anomaly_only, threshold_sl, speed_sel], gap=4)
+    return
 
-
-# ── ANIMATION ───────────────────────────────────────────────────────────────
 
 @app.cell
 def _(anomaly_only, df_merged, final_key, threshold_sl):
@@ -250,12 +306,13 @@ def _(anomaly_only, df_merged, final_key, threshold_sl):
 @app.cell
 def _(is_playing, mo, speed_sel):
     timer = mo.ui.refresh(default_interval=speed_sel.value) if is_playing.value else mo.ui.refresh()
-    return timer,
+    return (timer,)
 
 
 @app.cell
 def _(timer):
     timer
+    return
 
 
 @app.cell
@@ -264,30 +321,32 @@ def _(mo):
     return get_pos, set_pos
 
 
-# FIX : vérification is_playing.value avant d'incrémenter (évite désynchronisation slider)
 @app.cell
 def _(is_playing, n_frames, set_pos, timer):
     timer
     if n_frames > 0 and is_playing.value:
         set_pos(lambda p: (p + 1) % n_frames)
+    return
 
 
 @app.cell
 def _(mo, n_frames):
     frame_slider = mo.ui.slider(0, max(0, n_frames - 1), value=0,
                                 label="Position manuelle", show_value=True, full_width=True)
-    return frame_slider,
+    return (frame_slider,)
 
 
 @app.cell
 def _(frame_slider, mo):
     mo.vstack([frame_slider])
+    return
 
 
 @app.cell
 def _(frame_slider, is_playing, set_pos):
     if not is_playing.value:
         set_pos(frame_slider.value)
+    return
 
 
 @app.cell
@@ -304,14 +363,13 @@ def _(frame_slider, get_pos, is_playing, n_frames, play_indices):
     return current_df_idx, current_pos
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# KPI BANNER — Métriques opérationnelles temps réel
-# Inspiré des tableaux de bord SOC (Jiang et al. 2012 ; SANS Blue Team 2020)
-# ══════════════════════════════════════════════════════════════════════════
-
 @app.cell
 def _(mo):
-    mo.md("---\n## Tableau de bord opérationnel (KPIs)")
+    mo.md("""
+    ---
+    ## Tableau de bord opérationnel (KPIs)
+    """)
+    return
 
 
 @app.cell
@@ -386,12 +444,20 @@ def _(current_df_idx, df_merged, final_key, mo, np, pd, threshold_sl):
             ], gap=3, justify="start"),
         ])
     _out
+    return
 
-
-# ── BARRE DE STATUT FENÊTRE COURANTE ────────────────────────────────────────
 
 @app.cell
-def _(ATTACK_TYPES, TYPE_COLORS, current_df_idx, current_pos, df_merged, final_key, mo, n_frames, threshold_sl):
+def _(
+    current_df_idx,
+    current_pos,
+    df_merged,
+    final_key,
+    get_novelty,
+    mo,
+    n_frames,
+    threshold_sl,
+):
     if len(df_merged) > 0 and n_frames > 0:
         _r   = df_merged.iloc[current_df_idx]
         _ts  = _r.get("timestamp", "?")
@@ -403,7 +469,7 @@ def _(ATTACK_TYPES, TYPE_COLORS, current_df_idx, current_pos, df_merged, final_k
         _top1   = str(_r.get("top1_type", "")) if "top1_type" in _r.index else ""
         _top1_b = float(_r.get("top1_b", 0) or 0) if "top1_b" in _r.index else 0.0
         _u_sbn  = float(_r.get("u_sbn", 0) or 0) if "u_sbn" in _r.index else 0.0
-        _nov    = float(_r.get("novelty_score", 0) or 0) if "novelty_score" in _r.index else 0.0
+        _nov    = get_novelty(_r)
         _gate   = bool(_r.get("gate_open", False)) if "gate_open" in _r.index else False
 
         _det_str  = f"**ANOMALIE** proj={_p:.3f} u={_u:.3f}" if _anom else f"Normal proj={_p:.3f}"
@@ -417,19 +483,30 @@ def _(ATTACK_TYPES, TYPE_COLORS, current_df_idx, current_pos, df_merged, final_k
     else:
         _out = mo.md("")
     _out
+    return
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# BANDEAU HAUT — TIMELINES SUPERPOSÉES
-# ══════════════════════════════════════════════════════════════════════════
 
 @app.cell
 def _(mo):
-    mo.md("---\n## Timelines : Détection + Qualification")
+    mo.md("""
+    ---
+    ## Timelines : Détection + Qualification
+    """)
+    return
 
 
 @app.cell
-def _(ATTACK_TYPES, TYPE_COLORS, current_df_idx, df_merged, final_key, go, make_subplots, pd, threshold_sl):
+def _(
+    ATTACK_TYPES,
+    TYPE_COLORS,
+    current_df_idx,
+    df_merged,
+    final_key,
+    go,
+    make_subplots,
+    pd,
+    threshold_sl,
+):
     if len(df_merged) == 0:
         _f = go.Figure()
     else:
@@ -496,19 +573,31 @@ def _(ATTACK_TYPES, TYPE_COLORS, current_df_idx, df_merged, final_key, go, make_
         _fig.update_xaxes(showgrid=False)
         _f = _fig
     _f
+    return
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# PANNEAU CENTRAL — 3 COLONNES
-# ══════════════════════════════════════════════════════════════════════════
 
 @app.cell
 def _(mo):
-    mo.md("---\n## Panneau central — Fenêtre courante")
+    mo.md("""
+    ---
+    ## Panneau central — Fenêtre courante
+    """)
+    return
 
 
 @app.cell
-def _(ATTACK_TYPES, TYPE_COLORS, current_df_idx, df_merged, final_key, go, leaf_metrics, make_subplots, threshold_sl):
+def _(
+    ATTACK_TYPES,
+    TYPE_COLORS,
+    current_df_idx,
+    df_merged,
+    final_key,
+    get_novelty,
+    go,
+    leaf_metrics,
+    make_subplots,
+    threshold_sl,
+):
     if len(df_merged) == 0:
         _f = go.Figure()
     else:
@@ -573,7 +662,7 @@ def _(ATTACK_TYPES, TYPE_COLORS, current_df_idx, df_merged, final_key, go, leaf_
         if _gate:
             _sbn_vals = [float(_r.get(f"b_sbn_{t}", 0) or 0) for t in ATTACK_TYPES]
             _u_sbn    = float(_r.get("u_sbn", 0) or 0)
-            _nov      = float(_r.get("novelty_score", 0) or 0)
+            _nov      = get_novelty(_r)
             _top1     = str(_r.get("top1_type", "")) if "top1_type" in _r.index else ""
             _top1_b   = float(_r.get("top1_b", 0) or 0) if "top1_b" in _r.index else 0.0
             _ord2     = sorted(range(len(ATTACK_TYPES)), key=lambda i: _sbn_vals[i], reverse=True)
@@ -617,15 +706,16 @@ def _(ATTACK_TYPES, TYPE_COLORS, current_df_idx, df_merged, final_key, go, leaf_
                           gridcolor="rgba(255,255,255,0.1)", row=1, col=3)
         _f = _fig
     _f
+    return
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# PANNEAU BAS — DÉTAIL MÉTRIQUE (Opinion SL + Données brutes 30s)
-# ══════════════════════════════════════════════════════════════════════════
 
 @app.cell
 def _(mo):
-    mo.md("---\n## Détail métrique — Opinion SL + Données brutes 30s")
+    mo.md("""
+    ---
+    ## Détail métrique — Opinion SL + Données brutes 30s
+    """)
+    return
 
 
 @app.cell
@@ -635,16 +725,27 @@ def _(leaf_metrics, mo):
         value=leaf_metrics[0] if leaf_metrics else None,
         label="Métrique",
     )
-    return metric_sel,
+    return (metric_sel,)
 
 
 @app.cell
 def _(metric_sel, mo):
     mo.hstack([metric_sel])
+    return
 
 
 @app.cell
-def _(current_df_idx, df_merged, go, make_subplots, metric_sel, mo, pd, raw_data, raw_key_map):
+def _(
+    current_df_idx,
+    df_merged,
+    go,
+    make_subplots,
+    metric_sel,
+    mo,
+    pd,
+    raw_data,
+    raw_key_map,
+):
     if len(df_merged) == 0 or not metric_sel.value:
         _f = go.Figure()
     else:
@@ -766,17 +867,16 @@ def _(current_df_idx, df_merged, go, make_subplots, metric_sel, mo, pd, raw_data
         _fig.update_yaxes(range=[0, 1.05], row=1, col=1)
         _f = _fig
     _f
+    return
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# TABLE DES ALERTES — Épisodes détectés avec filtre par type
-# Référence : Jiang et al. 2012 "Towards Usable Network Monitoring Interfaces"
-# → 73% du temps opérateur passé sur vue tabulaire filtrée, pas sur graphes
-# ══════════════════════════════════════════════════════════════════════════
 
 @app.cell
 def _(mo):
-    mo.md("---\n## Table des alertes — Épisodes détectés")
+    mo.md("""
+    ---
+    ## Table des alertes — Épisodes détectés
+    """)
+    return
 
 
 @app.cell
@@ -786,16 +886,17 @@ def _(ATTACK_TYPES, mo):
         value=["Tous"],
         label="Filtrer par type d'attaque",
     )
-    return type_filter,
+    return (type_filter,)
 
 
 @app.cell
 def _(mo, type_filter):
     mo.hstack([type_filter])
+    return
 
 
 @app.cell
-def _(df_merged, final_key, mo, pd, threshold_sl, type_filter):
+def _(df_merged, final_key, mo, novelty_col, pd, threshold_sl, type_filter):
     if len(df_merged) == 0 or not final_key:
         _out = mo.callout(mo.md("Aucune donnée chargée."), kind="warn")
     else:
@@ -828,7 +929,7 @@ def _(df_merged, final_key, mo, pd, threshold_sl, type_filter):
                         "Type top-1"   : _ep_df["top1_type"].dropna().mode().iloc[0] if "top1_type" in _ep_df.columns and len(_ep_df["top1_type"].dropna()) > 0 else "?",
                         "b_top1 moy"   : round(float(_ep_df["top1_b"].mean()), 4) if "top1_b" in _ep_df.columns else "-",
                         "u_sbn moy"    : round(float(_ep_df["u_sbn"].mean()), 4) if "u_sbn" in _ep_df.columns else "-",
-                        "novelty moy"  : round(float(_ep_df["novelty_score"].mean()), 4) if "novelty_score" in _ep_df.columns else "-",
+                        "novelty moy"  : round(float(_ep_df[novelty_col].mean()), 4) if novelty_col and novelty_col in _ep_df.columns else "-",
                     }
                     _episodes.append(_ep_dict)
                     _ep_rows = []
@@ -850,7 +951,7 @@ def _(df_merged, final_key, mo, pd, threshold_sl, type_filter):
                 "Type top-1"   : _ep_df["top1_type"].dropna().mode().iloc[0] if "top1_type" in _ep_df.columns and len(_ep_df["top1_type"].dropna()) > 0 else "?",
                 "b_top1 moy"   : round(float(_ep_df["top1_b"].mean()), 4) if "top1_b" in _ep_df.columns else "-",
                 "u_sbn moy"    : round(float(_ep_df["u_sbn"].mean()), 4) if "u_sbn" in _ep_df.columns else "-",
-                "novelty moy"  : round(float(_ep_df["novelty_score"].mean()), 4) if "novelty_score" in _ep_df.columns else "-",
+                "novelty moy"  : round(float(_ep_df[novelty_col].mean()), 4) if novelty_col and novelty_col in _ep_df.columns else "-",
             })
 
         if not _episodes:
@@ -864,18 +965,16 @@ def _(df_merged, final_key, mo, pd, threshold_sl, type_filter):
                 mo.ui.table(_df_ep, page_size=15),
             ])
     _out
+    return
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# CORRÉLATION INTER-MÉTRIQUES — Détection d'attaques coordonnées
-# Pearson sur proj_atk des 60 dernières fenêtres.
-# Référence opérationnelle : colonnes simultanément rouges = attaque volumétrique
-# (Chandola et al. 2009 ACM CSUR §3.2 ; Sommer & Paxson 2010 IEEE S&P)
-# ══════════════════════════════════════════════════════════════════════════
 
 @app.cell
 def _(mo):
-    mo.md("---\n## Corrélation inter-métriques (proj_atk, 60 fenêtres glissantes)")
+    mo.md("""
+    ---
+    ## Corrélation inter-métriques (proj_atk, 60 fenêtres glissantes)
+    """)
+    return
 
 
 @app.cell
@@ -919,17 +1018,16 @@ def _(current_df_idx, df_merged, go, leaf_metrics, np):
             _fig = go.Figure()
         _f = _fig
     _f
+    return
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# BASELINE ROLLING — Comparaison semaine N vs N-1
-# Standard IPFIX/sFlow (ntopng, ElastiFlow, RFC 5101).
-# Détection d'anomalies calendaires : lundi courant vs 4 derniers lundis.
-# ══════════════════════════════════════════════════════════════════════════
 
 @app.cell
 def _(mo):
-    mo.md("---\n## Baseline rolling — Semaine courante vs semaine précédente")
+    mo.md("""
+    ---
+    ## Baseline rolling — Semaine courante vs semaine précédente
+    """)
+    return
 
 
 @app.cell
@@ -948,10 +1046,19 @@ def _(leaf_metrics, mo):
 @app.cell
 def _(baseline_metric_sel, baseline_weeks_sel, mo):
     mo.hstack([baseline_metric_sel, baseline_weeks_sel])
+    return
 
 
 @app.cell
-def _(baseline_metric_sel, baseline_weeks_sel, df_merged, go, pd, raw_data, raw_key_map):
+def _(
+    baseline_metric_sel,
+    baseline_weeks_sel,
+    df_merged,
+    go,
+    pd,
+    raw_data,
+    raw_key_map,
+):
     if len(df_merged) == 0 or not baseline_metric_sel.value:
         _f = go.Figure()
     else:
@@ -1016,6 +1123,7 @@ def _(baseline_metric_sel, baseline_weeks_sel, df_merged, go, pd, raw_data, raw_
         )
         _f = _fig
     _f
+    return
 
 
 if __name__ == "__main__":

@@ -741,7 +741,7 @@ def compute_opinions():
             state_memory[key] = R_new
 
             # Base rate (EDP) : prior empirique calculé à l'entraînement (train_v10).
-            # Statique par métrique — Ferguson (1973), Efron & Morris (1973 JASA).
+            # Statique par métrique — Ferguson (1973), Robbins (1955/1983).
             # Fallback : prior uniforme SL_PRIOR_A si la métrique est absente de l'EDP.
             if _edp_dict is not None and key in _edp_dict:
                 edp_k = _edp_dict[key]

@@ -70,7 +70,7 @@
 | In-sample R² is optimistic | Hastie, Tibshirani, Friedman (2009). *The Elements of Statistical Learning*, §7.10. | Statistics | PATCH-M1 cross-citation in train code |
 | Mean Absolute Scaled Error (MASE) — scale-invariant accuracy metric | Hyndman, R. J., & Koehler, A. B. (2006). *Another look at measures of forecast accuracy*. *International Journal of Forecasting* 22(4):679–688. | Forecasting | `stats/mase.py::compute_mase`; `train/train_models.py` per-Prophet `mase_score` persistence; `WBF_WEIGHT_MODE='mase'` (PATCH D5) |
 | Forecast skill score relative to a reference baseline | Murphy, A. H. (1988). *Skill scores based on the mean square error and their relationships to the correlation coefficient*. *Monthly Weather Review* 116(12):2417–2424. | Forecast verification | `stats/mase.py::mase_to_trust` skill-score interpretation `1 − MASE` (PATCH D5) |
-| MASE pathology at high sampling frequency (Naive-1 dominant) | Hyndman, R. J., & Koehler, A. B. (2006) §3 — empirical observation that MASE's informativeness depends on the dominance of the Naive-1 baseline. | Forecasting / methodology | Documented in `docs/audit/trust_discount_r2_analysis.md` §4.1 and current ablation (`MASE-Trust legacy` detects 0/14 attacks) |
+| MASE pathology at high sampling frequency (Naive-1 dominant) | Hyndman, R. J., & Koehler, A. B. (2006) §3 — empirical observation that MASE's informativeness depends on the dominance of the Naive-1 baseline. | Forecasting / methodology | Documented in `docs/audit/trust_discount_r2_analysis.md` §4.1 and current fixed-threshold ablation (`MASE-Trust legacy` crosses no catalog attack windows at the uniform production threshold) |
 
 ---
 
@@ -126,7 +126,7 @@
 | Wilson score interval | Wilson, E. B. (1927). *Probable inference, the law of succession, and statistical inference*. *JASA* 22(158):209–212. | Statistics | `audit/audit_full_dataset.py`; `evaluate/axelsson_ppv.py` |
 | Wilson > Wald near 0/1 | Brown, L. D., Cai, T. T., & DasGupta, A. (2002). *Confidence intervals for a binomial proportion and asymptotic expansions*. *Annals of Statistics* 30(1):160–201. | Statistics | rationale for Wilson in proportions CI |
 | BCa bootstrap (2nd-order accurate) | Efron, B. (1987). *Better bootstrap confidence intervals*. *JASA* 82(397):171–185. <br/>Efron, B., & Tibshirani, R. (1993). *An Introduction to the Bootstrap*. CRC. | Resampling | `stats/bootstrap_ci.py::bootstrap_bca_ci`; jackknife acceleration in the same module |
-| Block bootstrap (preferred for time series; *not* implemented) | Künsch, H. R. (1989). *The jackknife and the bootstrap for general stationary observations*. *Annals of Statistics* 17(3):1217–1241. | Resampling | mentioned in the audit's open-issue list (assumption A7.5) |
+| Moving-block bootstrap for time series | Künsch, H. R. (1989). *The jackknife and the bootstrap for general stationary observations*. *Annals of Statistics* 17(3):1217–1241. | Resampling | `stats/bootstrap_ci.py::bootstrap_bca_ci(..., block_length=...)`; `evaluate/evaluate_injection.py` persists `bootstrap_resampling=moving_block` |
 | Newey–West autocorrelation correction | Newey, W. K., & West, K. D. (1987). *A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix*. *Econometrica* 55(3):703–708. | Time-series stats | `stats/residual_correlation.py::newey_west_eff_n` |
 | McNemar's test | McNemar, Q. (1947). *Note on the sampling error of the difference between correlated proportions or percentages*. *Psychometrika* 12(2):153–157. | Categorical statistics | `stats/mcnemar.py` |
 | Continuity correction (small `n_disc`) | Pembury Smith, M. Q. R., & Ruxton, G. D. (2020). *Effective use of the McNemar test*. *Behavioral Ecology and Sociobiology* 74:133. | Statistics | `stats/mcnemar.py` (header docstring + small-`n` branch) |
@@ -136,8 +136,6 @@
 | Range-based PR / recall (anomaly time-series) | Tatbul, N., Lee, T. J., Zdonik, S., et al. (2018). *Precision and recall for time series*. *NeurIPS 2018*. | Time-series AD | `vus_metrics.py` |
 | Volume-Under-Surface (VUS) | Paparrizos, J., Boniol, P., Palpanas, T., et al. (2022). *Volume Under the Surface: A new accuracy evaluation measure for time-series anomaly detection*. *VLDB 2022*. | Time-series AD | `evaluate/vus_metrics.py` |
 | Base-rate fallacy / PPV in IDS | Axelsson, S. (2000). *The base-rate fallacy and the difficulty of intrusion detection*. *ACM TISSEC* 3(3):186–205. | IDS evaluation | `evaluate/axelsson_ppv.py` (full module) |
-| Sun et al. on anomaly thresholding | Sun, S. et al. (cited as "Sun et al. ICML 2024" in the module docstring of `paths.py`). | Anomaly detection | rationale for `proj_atk` quantile threshold |
-| Ali et al. on threshold calibration | Ali, S., et al. (cited as "Ali et al. TISSEC 2013" in the module docstring of `paths.py`). | IDS | rationale cross-reference |
 
 ---
 

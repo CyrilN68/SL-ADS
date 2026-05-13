@@ -1,9 +1,7 @@
 # Honest Limitations - Draft for Paper Section 5.3
 
-**Status:** 2026-05-12, complete RedeRio 17-leaf rerun integrated
+**Status:** 2026-05-13, complete RedeRio 17-leaf rerun integrated and limitation wording rechecked
 **Purpose:** drop-in draft for the paper's "Limitations" section.
-The text below is written in third person, neutral tone, suitable
-for direct insertion into the paper TEX file (with light copy-edit).
 
 **Current numeric reference.** Paper-facing values come from run
 `2e12261d55a8f975` / `resultats_RedeRio_trained_v4s_v4_v3`, completed
@@ -21,13 +19,23 @@ We acknowledge five limitations that bound the generalisability of
 our results and the strength of the claims we make. They are listed
 in roughly decreasing order of practical impact.
 
-### 5.3.1 Synthetic anomaly injection
+### 5.3.1 Evidence-level synthetic catalog and real incidents
 
-All attack scenarios in this work are *synthetically injected* into
-the otherwise benign RedeRio capture (Section 3.1). This design
-choice gives us perfect labels and full control over attack timing
-and intensity, but exposes us to two well-documented benchmark
-flaws (Wu and Keogh, 2021):
+The controlled 13-scenario attack catalog in this work is
+*synthetically injected* at evidence level into the otherwise benign
+RedeRio capture (Section 3.1). That statement does **not** apply to the
+`REAL_DDOS` interval or to the two network-outage intervals: those are
+real incidents observed in the RedeRio trace and are reported separately.
+The paper therefore distinguishes three evaluation objects:
+
+  - synthetic catalog attacks, used for the controlled labelled benchmark;
+  - the observed `REAL_DDOS` event, included in real-event/operator analyses;
+  - observed network outages, reported separately and included as positives
+    only in the operator-faithful anomaly protocol.
+
+The synthetic catalog gives us perfect labels and full control over attack
+timing and intensity, but exposes the catalog task to two well-documented
+benchmark flaws (Wu and Keogh, 2021):
 
   - **Triviality / structural upper bounds.** Some volumetric or
     reconstruction-violating scenarios are easy for simple structural
@@ -39,7 +47,7 @@ flaws (Wu and Keogh, 2021):
   - **Distributional fingerprint.** Our default injection operates at
     the *evidence* level, after Prophet residuals have been computed.
     A reviewer may legitimately argue that this bypasses the realism
-    constraint imposed by raw-traffic generation. The current public
+    constraint imposed by raw-traffic generation or replay. The current public
     comparison therefore separates tasks explicitly: `compare_no_sl_fair.py`
     compares SL vs no-SL on the same evidence-level attack task, while
     `compare_raw_baselines_fair.py` trains IF / LOF / OCSVM / SGD-OCSVM
@@ -47,7 +55,9 @@ flaws (Wu and Keogh, 2021):
     because those attacks do not exist in the raw traffic. The SL row in
     that table is generated from `opinions_non_injected/detection_results_RAW.csv`,
     not from the injected detection CSV. Raw-baseline numbers must not be
-    cited as if they were evaluated on the synthetic catalog.
+    cited as if they were evaluated on the synthetic catalog. A stronger
+    future benchmark would inject or replay attack traffic at raw-feature level
+    with dataset-conditioned constraints before feature extraction.
 
 ### 5.3.2 Single-dataset evaluation
 
@@ -66,7 +76,7 @@ as in-distribution estimates.
 ### 5.3.3 Subjective Logic fusion assumptions
 
 The Weighted Belief Fusion (WBF) operator we use as the default
-inter-method aggregation step (Joesang, 2016, Sec. 12.5.4) is not a
+inter-method aggregation step (Josang, 2016, Sec. 12.5.4) is not a
 claim that Prophet and Reconstruction are independent in the strong
 Cumulative Belief Fusion (CBF) sense. CBF remains a legacy ablation
 operator because it adds evidence and can double-count correlated
@@ -89,7 +99,7 @@ trade-off reverses.
 
 In addition, we ship `WBF_WEIGHT_MODE = "uniform"` as the *default*
 and reference weighting scheme.  The trust-discount alternative
-(Joesang, 2016, Def. 14.6) using per-source R^2 as a proxy for
+(Josang, 2016, Def. 14.6) using per-source R^2 as a proxy for
 trust is implemented but **not enabled by default** because we
 identified a pathological inversion empirically confirmed on the
 RedeRio benchmark and refreshed on the complete run `2e12261d55a8f975`
@@ -120,12 +130,12 @@ discriminative low-volume signal.  Empirical impact on the canonical
 binary detection metric (F1-coverage, evidence-level injection,
 14 attacks):
 
-| Configuration                                | F1-cov | Det.   | FPR % |
-|----------------------------------------------|--------|--------|-------|
-| Uniform WBF reference, threshold 0.103       | 0.879  | 14/14  | 0.97  |
-| Trust-Discount legacy, R^2 pathology         | 0.628  | 12/14  | 4.39  |
-| MASE-Trust legacy                            | 0.000  | 0/14   | 0.00  |
-| Reconst Only, structural upper-bound         | 0.923  | 14/14  | 0.43  |
+| Configuration                          | F1-cov | Det.  | FPR % |
+| -------------------------------------- | ------ | ----- | ----- |
+| Uniform WBF reference, threshold 0.103 | 0.879  | 14/14 | 0.97  |
+| Trust-Discount legacy, R^2 pathology   | 0.628  | 12/14 | 4.39  |
+| MASE-Trust legacy                      | 0.000  | 0/14  | 0.00  |
+| Reconst Only, structural upper-bound   | 0.923  | 14/14 | 0.43  |
 
 Trust-discount loses 0.251 F1-cov vs uniform, drops 2 attacks, and
 inflates FPR by 3.4 percentage points.  This is the empirical
@@ -150,10 +160,10 @@ the Naive-1 persistence baseline is dominant: most Prophet metrics
 yield MASE > 1, i.e. predict the next sample *worse* than the
 trivial persistence baseline.  Under the canonical α=1 Joesang
 Def. 14.6 trust map `trust = max(floor, 1 − α·MASE)`, every Prophet
-source is silenced down to the floor (TRUST_SCORE_FLOOR=0.05).  This
+sources are discounted down to the floor (TRUST_SCORE_FLOOR=0.05).  This
 is the *opposite* failure mode of R²: R² over-trusts the volumetric
 metrics that under-fit the discriminative low-volume signals; MASE
-over-discounts *all* sources because persistence at 30 s is hard to
+over-discounts the forecasting branch because persistence at 30 s is hard to
 beat.  Crucially, the two proxies disagree on which metrics are
 "trustworthy" — for example `prophet_fin` has the highest R² (0.81)
 but a very poor MASE (3.53), while `prophet_avg_pkt_size` has
@@ -164,7 +174,16 @@ behaviour when an anomaly arrives — a property neither proxy
 captures.  We therefore reaffirm `WBF_WEIGHT_MODE = 'uniform'` as the
 published default and expose `'mase'` only as an audit-grade
 alternative whose pathology is empirically documented in
-`docs/audit/trust_discount_r2_analysis.md` §4.1.
+`docs/audit/trust_discount_r2_analysis.md`.
+
+The `MASE-Trust legacy` row above is a fixed-threshold ablation: it evaluates
+the MASE-discounted score at the same production threshold calibrated for the
+uniform reference (`delta = 0.102614`). Under that operating point no window
+crosses the threshold, hence the all-zero F1/FPR row in
+`ablation_uniform/ablation_summary.csv`. This should be read as "the current
+MASE trust map is not drop-in compatible with the published operating point",
+not as a fair separately recalibrated MASE detector and not as proof that MASE
+can never be useful with a different discriminative calibration.
 
 A discriminative trust proxy that addresses both pathologies — for
 example a directional information score (mutual information between
@@ -294,7 +313,12 @@ position:
 
 ---
 
-## audit_codex 2026-04-26 disclosures (Phase G)
+## Technical audit disclosures retained for traceability
+
+The following audit notes are kept here because they support the limitation
+claims, but they are not additional paper subsection titles. In the manuscript,
+fold them into the relevant numbered limitations or appendices rather than
+publishing an `audit_codex` heading.
 
 ### CRIT-02: calibration surrogate vs deployed score (mitigated, residual FPR drift)
 
@@ -533,17 +557,38 @@ under-claiming:
 
 This trade-off is reported transparently as the H-F2 hypothesis
 (now consolidated into `docs/scientific_deconstruction/ASSUMPTIONS.md`;
-the original threat catalog is archived). The resolution
-in v11 of the system will be a two-step qualifier: SBN for
-uncertainty-aware confidence + targeted feature extension for the
-three confused families.
+the original threat catalog is archived). The two-step qualifier described in
+older drafts has **not** been shipped as a current contribution. It remains a
+future-work direction: keep the SBN for uncertainty-aware confidence, then add
+targeted DNS/port/application features for the confused families.
 
 ---
 
-## 5.3.9 Methodological gap between `compare_if` and `eval_injection`
+## 5.3.9 Binary F1 protocol clarity and legacy `compare_if` diagnostic
 
-We report two binary-detection F1 scores in different sections of
-the paper that look numerically incompatible:
+The current paper-facing detection section should report two compatible F1
+protocols side by side:
+
+  - `catalog_outages_separate`: F1 micro = 0.8666. Positives are the synthetic
+    catalog plus the real DDoS attack; outage windows are excluded from the F1
+    denominator and reported in the event table.
+  - `operator_faithful_anomaly`: F1 micro = 0.8257. Positives include the same
+    catalog/real-DDoS events plus the observed network outages, because an
+    operator would treat those outage windows as relevant anomalies.
+
+These numbers are not contradictory. They use the same run, the same detector,
+and the same threshold; only the positive-label policy changes. The first score
+supports catalog comparability, while the second score is the more honest
+operator view. The paper should not hide either one.
+
+The older `compare_if` pseudo-label F1 values below are retained only as
+diagnostic context. They answer "does SL-ADS agree with generic statistical
+change-point labels?", not "does SL-ADS detect the attack/outage episodes?".
+They must not be plotted against the catalog/outage F1 values as if they shared
+one label definition.
+
+Older drafts reported two additional binary-detection F1 scores that looked
+numerically incompatible:
 
   - `eval_injection`: SL-ADS  F1 = 0.867 (canonical, reference
     label set — 14 curated attacks).
@@ -580,7 +625,7 @@ Reporting both is informative because it bounds the operating
 range of the system.  Reporting them on the same axis without the
 caveat would be misleading.
 
-**Operational clarification we will add to the paper:**
+**Legacy clarification for the diagnostic appendix, not the main F1 table:**
 
 > §4.0 paragraph: *"We report two complementary detection scores:
 > the canonical F1 against the curated attack catalog
@@ -641,6 +686,15 @@ collapse, slow header trickle), not a volumetric surge.  Three of our
 `prophet_entropy_src_ip` — and all three have weak forecastability
 (R^2 < 0.25, see Section 5.3.3) because their benign baseline is
 itself bursty.
+
+This is also a limitation of the current synthetic catalog design. The
+Slowloris episode is injected as an evidence-level signature rather than as
+raw connection-level traffic replayed through the RedeRio feature extractor.
+That makes the label/control experiment clean, but it does not prove that the
+same residual trajectory would arise from a physically realistic Slowloris
+generator on this dataset. A stronger future evaluation should make attack
+injection dataset-conditioned at the raw-feature level, especially for
+low-volume application-layer scenarios.
 
 **Mitigation status.**  The current RedeRio reference configuration ships
 uniform WBF with `CD_ALPHA_ATTACK = 1.0`; no contextual-discount alpha is

@@ -17,22 +17,22 @@
 
 ## 0. Glossary
 
-| Symbol | Meaning |
-|---|---|
-| `X_t` | Per-metric scalar measurement at time `t` (every 30 s for RedeRio). |
-| `M_p` | Set of Prophet-modelled metrics (12 on RedeRio: bytes, packets, flows, syn, icmp, udp, tcp, fin, entropy_src_ip, entropy_src_port, entropy_dst_port, avg_pkt_size). |
-| `M_r` | Set of Reconstruction-modelled metric pairs (5 on RedeRio: bytes←packets, bytes←entropy_src_port, udp←flows, fin←syn, tcp←packets). |
-| `e_t` | Signed point residual `y_t − ŷ_t`. |
-| `(p,s,n)_t` | Trapezoidal triplet at one timestep, `p+s+n=1`. |
-| `n_window = WINDOW_SIZE = 10` | Number of points per opinion window (= 5 min at 30 s sampling). |
-| `(P,S,N)` | Per-window evidence vector, `P+S+N = n_window`. |
-| `r = (P,S,N)` | Same vector seen as Jøsang-style evidence. |
-| `ω = (b, u, a)` | A multinomial opinion (`Σb + u = 1`). |
-| `R_τ` | State-memory accumulated evidence for a metric at window τ. |
-| `K_τ` | Conflict degree between `R_{τ−1}` and `r_τ`. |
-| `λ_dyn` | Dynamic ageing factor; `λ_dyn = λ_base · (1 − α·K)`. |
-| `proj_atk = b_atk + a_atk·u` | Decision variable. |
-| `δ` | Auto-calibrated decision threshold. |
+| Symbol                        | Meaning                                                                                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `X_t`                         | Per-metric scalar measurement at time `t` (every 30 s for RedeRio).                                                                                                 |
+| `M_p`                         | Set of Prophet-modelled metrics (12 on RedeRio: bytes, packets, flows, syn, icmp, udp, tcp, fin, entropy_src_ip, entropy_src_port, entropy_dst_port, avg_pkt_size). |
+| `M_r`                         | Set of Reconstruction-modelled metric pairs (5 on RedeRio: bytes←packets, bytes←entropy_src_port, udp←flows, fin←syn, tcp←packets).                                 |
+| `e_t`                         | Signed point residual `y_t − ŷ_t`.                                                                                                                                  |
+| `(p,s,n)_t`                   | Instantaneous trapezoid evidence proportions for one residual; `p+s+n=1` by construction, but this is not yet a Subjective-Logic opinion.                           |
+| `n_window`                    | Effective number of observed points in the current evidence window. Full RedeRio windows have `WINDOW_SIZE = 10` (= 5 min at 30 s); final partial windows may have `n_window < 10`. |
+| `(P,S,N)`                     | Per-window accumulated evidence counts: `P=sum_t p_t`, `S=sum_t s_t`, `N=sum_t n_t`, so `P+S+N = n_window`.                                                          |
+| `r = (P,S,N)`                 | Evidence vector supplied to the Jøsang evidence-to-opinion bijection; it becomes an opinion only after `evidence_to_opinion(r, W, a)`.                               |
+| `ω = (b, u, a)`               | A multinomial opinion after bijection (`sum(b) + u = 1`).                                                                                                            |
+| `R_τ`                         | State-memory accumulated evidence for a metric at window τ.                                                                                                         |
+| `K_τ`                         | Conflict degree between `R_{τ−1}` and `r_τ`.                                                                                                                        |
+| `λ_dyn`                       | Dynamic ageing factor; `K_eff = clip(α·K, 0, 1)` and `λ_dyn = λ_base · (1 − K_eff)` in the current `γ=1` configuration.                                               |
+| `proj_atk = b_atk + a_atk·u`  | Decision variable.                                                                                                                                                  |
+| `δ`                           | Auto-calibrated decision threshold.                                                                                                                                 |
 
 ---
 
@@ -40,8 +40,7 @@
 
 ### 1.1 Inputs
 - Standardized CSV `data_standardized/RedeRio.csv` (30 s cadence; 12 core
-  Prophet-modelled metrics in the RedeRio profile; exact row count depends on
-  the dataset snapshot used for the run)
+  Prophet-modelled metrics in the RedeRio profile)
 - `CONFIG['split_date'] = 2025-11-09 23:59:59` partitioning train ∪ test
 - `CONFIG['CALIB_SPLIT_FRACTION'] = 0.25` further splitting train into model-fit ∪ threshold-calibration
 
@@ -74,7 +73,7 @@
   1. `t₀ = quantile(|e_calib|, 0.90)`
   2. `excesses = (|e_calib|[|e_calib| > t₀]) − t₀`
   3. If `len(excesses) < EVT_MIN_PEAKS=50` → empirical quantile fallback (logged in `_FALLBACK_LOG`)
-  4. Else MLE via Grimshaw 1D root-finding (`_grimshaw_fit`); fallback to `scipy.genpareto.fit`; final fallback to empirical
+  4. Else MLE via Grimshaw 1D root-finding (`_grimshaw_fit`); fallback to PWM, then `scipy.genpareto.fit`; final fallback to empirical
   5. Validity check Coles §4.2: `σ̃ = σ − ξ·t₀ > 0`; if not, empirical fallback (logged)
   6. `T_susp = t₀ + (σ/ξ)((q_susp · n_total/n_peaks)^{−ξ} − 1)`, similarly for `T_atk`
   7. Safety: `T_atk ← max(T_atk, 1.10·T_susp)`
@@ -108,16 +107,17 @@
 - **Input**: residuals `_calib_signed_residuals` (or fall-back to training residuals).
 - **Transformation** via `_compute_training_proj_atk`:
   1. For each window τ, evaluate `(P_τ, S_τ, N_τ)` per metric using the trapezoidal map and calibrated thresholds.
-  2. Aggregate across all metrics: `(P_global, S_global, N_global) = Σ_metric (P, S, N)`; this is a *CBF additive surrogate* for the deployed multi-stage fusion.
-  3. Compute `a_global = mean(a_edp[metric])`, renormalised to simplex.
-  4. Bijection (Def. 3.9) with `W=3`: `op_global = evidence_to_opinion((P,S,N)_global, W, a_global)`.
-  5. `proj_atk_τ = op_global.b[2] + a_global[2] · op_global.u`.
-  6. `δ = quantile(proj_atk_τ, 1 − FPR_TARGET_DECISION)` with `FPR_TARGET_DECISION = 0.001`.
-  7. Sparse-distribution guards (cf. METHODS §3.2) for cases where most `proj_atk ≈ 0`.
-- **Output**: `models_pkg['_decision_threshold']`, `models_pkg['_decision_variable'] = 'proj_atk'`, plus a JSON sidecar `<model>_threshold.json` with the deployment configuration alongside δ (PATCH TASK-45).
+  2. Convert each metric window to `op_leaf = evidence_to_opinion((P,S,N), W=3, a_edp[metric])`.
+  3. Optionally apply uncertainty maximisation and trust-discount mode, matching `CONFIG`.
+  4. Group metrics with `CONFIG['FUSION_METHOD_GROUPS']`; apply intra-method WBF and the configured Reconstruction contextual discount.
+  5. Fuse method-level opinions with the requested `INTER_METHOD_FUSION` mode (`wbf` in the current RedeRio run).
+  6. `proj_atk_τ = op_fused.b[2] + op_fused.a[2] · op_fused.u`.
+  7. `δ = quantile(proj_atk_τ, 1 − FPR_TARGET_DECISION)` with `FPR_TARGET_DECISION = 0.001`.
+  8. Sparse-distribution guards (cf. METHODS §3.2) for cases where most `proj_atk ≈ 0`.
+- **Output**: `models_pkg['_decision_threshold']`, `models_pkg['_decision_variable'] = 'proj_atk'`, mode-specific `models_pkg['_decision_threshold_by_fusion_mode']`, plus JSON sidecars `<model>_threshold*.json` with the deployment configuration alongside δ (PATCH TASK-45/TASK-55).
 - **Methods**: §3.1 + §3.2 of METHODS.md.
 - **Assumptions**: A1.9 (surrogate vs deployment match), A1.10 (`proj_atk` smooth), A7.1 (no on-test tuning).
-- **Justification**: Pre-calibrate δ on a hold-out span so that headline F1 is reported at a *fixed* operating point — never tuned on the test set. The CBF additive surrogate is a *simpler* version of the deployed pipeline; the sidecar caveat documents that any change to the deployed configuration after training silently invalidates δ.
+- **Justification**: Pre-calibrate δ on a hold-out span so that headline F1 is reported at a *fixed* operating point — never tuned on the test set. The calibration now replays the deployed grouping and inter-method fusion, but remains an instantaneous training-span surrogate because it does not replay temporal ageing over the full test stream. The sidecar caveat documents that deployment-configuration drift invalidates δ.
 
 ### 1.9 Persisted artefacts
 - `trained_models_<VERSION>.pkl` (joblib): contains every Prophet/QR model, all thresholds, EDP, trust scores, decision threshold, decision variable, `_meta_split_date`.
@@ -200,7 +200,7 @@ For each catalog entry `atk = {name, start, end, intensity, signature}`:
 ### 3.4 Methods / assumptions / justification
 - **Methods**: §5 of METHODS.md.
 - **Assumptions**: A3.1 (disjoint catalog), A3.2 (non-injected = normal), A3.3 (signature representativity), A3.4 (invariant preserved), A3.5 (invisible to threshold calibrator since events lie in test span only).
-- **Justification**: RedeRio has no labelled real attacks; ground truth must be synthetic. Injecting at the *evidence* level (rather than raw or residual) bypasses the Prophet/QR pipeline so the same forecasters are tested on the same residuals — only the bottom-up evidence triplets change. This isolates the SL stack as the system under test.
+- **Justification**: The 13 controlled catalog episodes are synthetic and provide perfect timing/type labels. RedeRio also contains observed incidents (`REAL_DDOS` and network outages), which are handled in the evaluation protocols rather than injected here. Injecting the catalog at the *evidence* level (rather than raw or residual) bypasses the Prophet/QR pipeline so the same forecasters are tested on the same residuals — only the bottom-up evidence triplets change. This isolates the SL stack as the system under test, but it is not a raw-traffic realism claim.
 
 ---
 
@@ -481,7 +481,7 @@ remains the auto-calibrated δ from training.
 ## 9. Step `compare_if` and add-on baseline comparisons
 
 ### 9.1 Procedure
-1. The pipeline step `compare_if` runs the legacy raw IsolationForest agreement comparison.
+1. The pipeline step `compare_if` runs the legacy raw IsolationForest agreement comparison. In the current RedeRio artifact it evaluates against the raw CSV `label` pseudo-labels, while the SL row comes from the injected detection CSV; treat it as a diagnostic only, not as a paper-facing attack-detection comparison.
 2. After a complete run, `compare_no_sl_fair.py` compares the same evidence with and without the Subjective Logic layer. It calibrates non-SL thresholds on train-calib residuals and evaluates once on the test span.
 3. In PowerShell, set `$env:SL_FORCE_NONINJECTED_OPINIONS = "1"` and `$env:SL_SKIP_OPINION_PLOTS = "1"`, then run `python -m sl_ads.core.opinions_pipeline` to write `opinions_non_injected/detection_results_RAW.csv`, a raw-only SL score that does not overwrite `detection_results_INJECTED.csv`.
 4. `compare_raw_baselines_fair.py` trains IF, robust-z, and PCA baselines directly on raw metrics using pre-split normal rows. It requires the non-injected SL score and excludes synthetic injection windows because the catalog attacks are injected at evidence level, not raw-traffic level.

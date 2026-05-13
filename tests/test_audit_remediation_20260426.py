@@ -252,22 +252,50 @@ def test_task28_no_global_ignore_in_4_scripts() -> None:
 
 
 # ----------------------------------------------------------------------
-# TASK-33 (MIN-01) — marimo path uses current directory name
+# TASK-33 (MIN-01) — marimo notebooks resolve their project root portably
 # ----------------------------------------------------------------------
 def test_task33_min01_marimo_paths() -> None:
-    """Phase H: marimo notebooks moved to sl_ads/notebooks/.
-    Read the new path if available, fall back to legacy."""
-    pairs = [
-        ("compute_opinions.py", "marimo_compute_opinions.py"),
-        ("qualify_sbn.py",     "marimo_qualify_sbn.py"),
+    """Public-release contract for the Marimo notebooks under
+    ``src/sl_ads/notebooks/``:
+
+      * no hardcoded absolute path (Windows ``C:\\Users\\``,
+        Unix ``/Users/`` or ``/home/``) — would leak the author's
+        environment and break on any other machine;
+      * no reference to the pre-Phase-H folder name
+        ``actual_ version_claude_autre dataset`` (now archived);
+      * each notebook resolves its project root from
+        ``pathlib.Path(__file__).resolve()`` so it stays portable;
+      * each notebook imports the package config via
+        ``from sl_ads.config import CONFIG``.
+    """
+    notebooks = [
+        _PROJ / "src" / "sl_ads" / "notebooks" / "admin.py",
+        _PROJ / "src" / "sl_ads" / "notebooks" / "compute_opinions.py",
+        _PROJ / "src" / "sl_ads" / "notebooks" / "qualify_sbn.py",
     ]
-    for new_name, legacy_name in pairs:
-        new_path = _PROJ / "src" / "sl_ads" / "notebooks" / new_name
-        legacy_path = _PROJ / legacy_name
-        target = new_path if new_path.exists() else legacy_path
-        text = target.read_text(encoding="utf-8", errors="replace")
-        assert "actual_ version_claude_autre dataset" in text, \
-            f"{target.name}: expected current dir name not found"
+    forbidden_substrings = (
+        r"C:\Users\\",                       # Windows hardcoded user dir
+        "/Users/",                            # macOS hardcoded user dir
+        "/home/",                             # Linux hardcoded user dir
+        "actual_ version_claude_autre dataset",  # pre-Phase-H folder
+        "actual_version",                    # earlier pre-Phase-H folder
+    )
+    required_substrings = (
+        "pathlib.Path(__file__).resolve()",
+        "from sl_ads.config import CONFIG",
+    )
+    for nb in notebooks:
+        text = nb.read_text(encoding="utf-8", errors="replace")
+        for forbidden in forbidden_substrings:
+            assert forbidden not in text, (
+                f"{nb.name}: forbidden substring '{forbidden}' still present "
+                f"(hardcoded path or stale pre-Phase-H folder name)"
+            )
+        for required in required_substrings:
+            assert required in text, (
+                f"{nb.name}: required substring '{required}' missing "
+                f"(notebook must resolve __file__ and import sl_ads.config)"
+            )
 
 
 # ----------------------------------------------------------------------

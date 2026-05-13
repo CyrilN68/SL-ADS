@@ -5,7 +5,7 @@
 # Versions figées sur l'environnement ayant produit les résultats
 # publiés (voir MANIFEST.md pour le hash git / dataset).
 #
-# Reproducibilité : utiliser EXACTEMENT ces versions pour toute
+# Reproducibilité : utiliser ces versions pour toute
 # comparaison numérique (un changement de version de Prophet ou
 # scipy peut altérer la calibration EVT au-delà de la précision
 # rapportée).

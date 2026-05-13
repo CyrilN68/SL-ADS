@@ -1,7 +1,8 @@
 """run_pipeline.py — Single-binary entry point for the SL-ADS pipeline.
 
 Phase H (2026-04-29).  Replaces the legacy ``run_full_sl_ads.py``
-(now a deprecation shim — see ``docs/RENAMING_LOG_PHASE_H.md``).
+(now a deprecation shim — see
+``docs/archive/2026-05-11_public_release_cleanup/top_level/RENAMING_LOG_PHASE_H.md``).
 
 Usage::
 
@@ -46,6 +47,17 @@ import subprocess
 import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
+
+
+def _configure_console_encoding() -> None:
+    """Keep CLI smoke commands printable on legacy Windows consoles."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+_configure_console_encoding()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR  = os.path.join(BASE_DIR, "src")

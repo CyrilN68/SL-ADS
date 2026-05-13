@@ -9,7 +9,8 @@ Edge-case tests for the SL-ADS pipeline.  Covers:
   * adapter behaviour when the input file is empty.
 
 Phase H — added 2026-04-29.  Closes the "edge case" gap noted in
-``docs/RENAMING_LOG_PHASE_H.md`` Phase 7 audit.
+``docs/archive/2026-05-11_public_release_cleanup/top_level/RENAMING_LOG_PHASE_H.md``
+Phase 7 audit.
 """
 from __future__ import annotations
 

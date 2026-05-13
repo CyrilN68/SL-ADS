@@ -43,6 +43,7 @@ Thumbs.db
 _pytest*/
 pytest-cache-files-*/
 .testtmp/
+.tmp_pytest_safe/
 _codex*/
 
 # Pipeline artifacts (large; archived under results/<run_id>/ which is git-ignored)

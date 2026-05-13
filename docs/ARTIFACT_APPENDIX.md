@@ -11,7 +11,7 @@ from earlier reconstruction-only or partial runs are superseded.
 ## A.1 Abstract
 
 This artifact accompanies *"Subjective-Logic Anomaly Detection for
-Network Telemetry"*.  It is a self-contained Python 3.10+ pipeline
+Network Telemetry"*.  It is a self-contained Python 3.12 pipeline
 that reproduces every quantitative claim in the paper from the raw
 RedeRio / METR-LA / GECCO-IoT / CESNET-TimeSeries24 captures.  The
 pipeline produces opinion vectors, calibrated decision thresholds,

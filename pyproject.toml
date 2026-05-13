@@ -2,7 +2,7 @@
 #
 # This file makes the ``src/sl_ads/`` tree importable as the package
 # ``sl_ads`` and tells pytest where to find tests.  Created during the
-# Phase H reorganisation (cf. ``docs/RENAMING_LOG_PHASE_H.md``) so that
+# Phase H reorganisation (cf. ``docs/archive/2026-05-11_public_release_cleanup/top_level/RENAMING_LOG_PHASE_H.md``) so that
 # future imports look like ``from sl_ads.core.subjective_logic import …``
 # rather than the legacy version-suffixed flat layout.
 #
@@ -19,7 +19,7 @@ name            = "sl_ads"
 version         = "1.0.0"
 description     = "Subjective-Logic Anomaly Detection System (SL-ADS)."
 readme          = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [
     { name = "C. NAMUR" },
 ]
@@ -32,8 +32,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
     "Topic :: Security",
 ]

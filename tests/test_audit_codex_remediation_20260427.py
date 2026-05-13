@@ -209,7 +209,7 @@ def test_task40_labeller_stl_raise_default(monkeypatch):
     Phase H: monkeypatch the *real* module
     ``sl_ads.adapters.labeller_unsupervised`` (the legacy
     ``labeller_unsupervised`` is now a deprecation shim — see
-    ``docs/RENAMING_LOG_PHASE_H.md``).
+    ``docs/archive/2026-05-11_public_release_cleanup/top_level/RENAMING_LOG_PHASE_H.md``).
     """
     import sl_ads.adapters.labeller_unsupervised as lu
     import sl_ads.config as _cfg

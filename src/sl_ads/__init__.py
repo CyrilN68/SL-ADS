@@ -17,7 +17,8 @@ Sub-packages:
     notebooks  — Marimo interactive notebooks.
 
 The reorganisation that produced this layout is documented in
-``docs/RENAMING_LOG_PHASE_H.md`` (2026-04-27, Phase H).
+``docs/archive/2026-05-11_public_release_cleanup/top_level/RENAMING_LOG_PHASE_H.md``
+(2026-04-27, Phase H).
 """
 __version__ = "1.0.0-phase-h"
 

@@ -87,7 +87,7 @@ The raw RedeRio path used by the adapter configuration is:
 
 ## Setup
 
-Python 3.10+ is required. On Windows:
+Python 3.12 is the tested public runtime. On Windows:
 
 ```powershell
 python -m venv .venv

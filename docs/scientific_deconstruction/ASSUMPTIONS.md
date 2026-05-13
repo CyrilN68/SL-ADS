@@ -30,7 +30,7 @@ Assumptions are grouped by file. The order within a file is roughly *upstream-fi
 - **Type**: Data
 - **Visibility**: Implicit (only enforced by the `TRAIN_EXCLUSIONS` list)
 - **Sensitivity**: **CRITICAL**
-- **Location**: `train_models.py:1184–1204`; `config.py:TRAIN_EXCLUSIONS` (50+ ranges)
+- **Location**: `train_models.py::train_models` (consumes `TRAIN_EXCLUSIONS` to zero-out training metric values); `config.py::TRAIN_EXCLUSIONS` (50+ ranges)
 - **Formal**: ∀ t ∈ `df_train`, `label(t) = normal`.
 - **What breaks**: EVT thresholds, EDP and `DECISION_THRESHOLD` are all calibrated on this span. A real attack hidden inside `df_train_calib` shifts the surrogate `proj_atk` distribution → `δ` is biased high → operational FPR-budget mismatched. RedeRio has documented exclusions, but this assumption cannot be re-verified by the pipeline itself.
 - **2026-05-06 mitigation**: a defensive *unsupervised* second-opinion audit script (`src/sl_ads/audit/audit_train_span.py`) now runs the existing `ConsensusLabeller` (STL+Hampel+CUSUM) on the train span only and writes `outputs/scientific_hardening/audit_train_span.csv` plus `_summary.json`. Reference run on RedeRio with the 3 volumetric metrics (bytes/packets/flows): 80,642 train windows, 3,120 already in `TRAIN_EXCLUSIONS`, 306 *new* high-severity (3 metrics consensus) candidates, 4,751 medium (2 metrics), 13,969 low (1 metric). The top-N suspect windows (weekend evenings 2025-10-18 → 2025-10-26) are listed in the summary for manual review and are NOT automatically added to `TRAIN_EXCLUSIONS`. The script is intentionally non-destructive.
@@ -39,7 +39,7 @@ Assumptions are grouped by file. The order within a file is roughly *upstream-fi
 - **Type**: Statistical (EVT)
 - **Visibility**: Explicit (Coles 2001 §4.2 condition `σ̃ = σ − ξ·t₀ > 0` is checked)
 - **Sensitivity**: **HIGH**
-- **Location**: `train_models.py:413–451` (`_evt_threshold_pair`)
+- **Location**: `train_models.py::_evt_threshold_pair`
 - **Formal**: For excesses `Y = X − t₀ | X > t₀`, `Y ~ GPD(ξ, σ)` (Pickands 1975, Balkema–de Haan 1974) on the calibration span.
 - **What breaks**: When `σ̃ ≤ 0`, GPD is unstable — fallback to empirical quantile (recorded in `_FALLBACK_LOG['evt_sigma_mod']`). Cited as "EVT instable 7/17" in `docs/honest_limitations.md`. Empirical fallback is non-extrapolating: if observed peaks under-represent the right tail, `T_atk` is biased low → false positives in deployment.
 - **2026-05-06 strengthening**: the EVT fallback chain in `_evt_threshold` now reads `Grimshaw MLE → PWM (Hosking-Wallis 1987) → scipy.genpareto.fit → empirical quantile` — PWM is inserted as a closed-form "MLE-failed" fallback that is the standard EVT recommendation for `xi > 0.5` heavy tails (Coles 2001 §4.3.4) and for small samples. This narrows the empirical-quantile regime to the genuinely malformed cases. PWM correctness verified against synthetic GPD samples (tests `test_pwm_gpd_fit_recovers_known_parameters` and `test_pwm_gpd_fit_handles_heavy_tail_xi_above_half`).
@@ -48,7 +48,7 @@ Assumptions are grouped by file. The order within a file is roughly *upstream-fi
 - **Type**: Statistical (EVT)
 - **Visibility**: Explicit (declustering disabled, `EVT_DECLUSTER_RUN=−1`)
 - **Sensitivity**: **MEDIUM**
-- **Location**: `train_models.py:387–394`
+- **Location**: `train_models.py::_evt_threshold` (declustering branch, currently inactive)
 - **Formal**: Excesses are i.i.d. given `t₀`.
 - **Justification (in code)**: Prophet residuals are pre-whitened (Taylor & Letham 2018); reconstruction residuals on QR(0.5) at 30 s sampling are assumed to exhibit only microbursts.
 - **What breaks**: If residuals exhibit run-length clusters (e.g. flash-crowd episodes), `n_peaks` over-counts non-independent exceedances → MLE biased, GPD quantile `T_q` shifted. The implementation has the Davison–Smith (1990) declustering code, but it is not used in production.
@@ -59,7 +59,7 @@ Assumptions are grouped by file. The order within a file is roughly *upstream-fi
 
 ### A1.4 — `EVT_MIN_PEAKS = 50` sufficient for stable MLE
 - **Type**: Statistical
-- **Visibility**: Explicit (`config.py:EVT_MIN_PEAKS = 50`; check at `train_models.py:301, 385, 414`)
+- **Visibility**: Explicit (`config.py::EVT_MIN_PEAKS = 50`; check inside `train_models.py::_evt_threshold` and `::_evt_threshold_pair`)
 - **Sensitivity**: MEDIUM
 - **Formal**: Sample size for Grimshaw MLE; below threshold ⇒ empirical quantile.
 - **What breaks**: For `ξ > 0.5` (variance-infinite tail), Grimshaw's MLE convergence is slow (Coles 2001 §4.3); `n=50` may admit non-trivial bias on the right tail. The code falls back to empirical quantile, which is conservative for `T_susp` (under-estimating the upper extreme).
@@ -68,7 +68,7 @@ Assumptions are grouped by file. The order within a file is roughly *upstream-fi
 - **Type**: SL-theoretical / Statistical
 - **Visibility**: Explicit (`EVT_Q_*` interpreted as `P(|residual| > T | normal)`)
 - **Sensitivity**: HIGH
-- **Location**: `train_models.py:530–537`
+- **Location**: `train_models.py::_evt_threshold_pair` (quantile-target translation)
 - **Formal**: After whitening by Prophet/QR, residuals are zero-mean stationary; the marginal exceedance probability is invariant in deployment.
 - **What breaks**: Prophet residuals are *not* strictly stationary across regimes (e.g. holiday vs term-time on RedeRio). The code uses *one global threshold per metric*; if the residual variance differs between train and test seasons, the realised FPR diverges from `EVT_Q_*`.
 - **2026-05-12 measurement** (`src/sl_ads/ablation/evaluate_regime_fpr.py`, artefacts under `outputs/scientific_hardening/regime_fpr.*`): the audited span covers 45 days (2025-11-10 -> 2025-12-25). Realised FPR by calendar/time regime, with the operator target of 0.001:
@@ -149,21 +149,21 @@ invariants, and sidecar validator backward compatibility).
 
 ### A1.6 — Prophet `growth='flat'` is appropriate
 - **Type**: Engineering
-- **Visibility**: Explicit (`train_models.py:1490`)
+- **Visibility**: Explicit (`growth='flat'` is set in the Prophet configuration inside `train_models.py::train_models`)
 - **Sensitivity**: MEDIUM
 - **Formal**: ∂g/∂t = 0 over the training horizon.
 - **What breaks**: For datasets exhibiting multi-week trend (CESNET ISP capacity ramp), the `flat` choice forces residual mean drift → false positives at the trend-break boundary.
 
 ### A1.7 — QR(q=0.5) breakdown extends to physical-constraint-induced lack of leverage outliers
 - **Type**: Engineering / Statistical
-- **Visibility**: Explicit (lines 1244–1253)
+- **Visibility**: Explicit (documented in the Reconstruction-rule comment block in `train_models.py::train_models`)
 - **Sensitivity**: MEDIUM
 - **Formal**: For the rules with `fit_intercept=False` (e.g. `bytes ← packets`), the constraint `0 packets ⇒ 0 bytes` (Bridgman 1922) is satisfied physically, so leverage outliers are absent. LAD breakdown for response outliers is 50 % (Koenker & Bassett 1978).
 - **What breaks**: Rules with `fit_intercept=True` (`udp ← flows`, `fin ← syn`, `tcp ← packets`) are *not* protected from leverage outliers; if a heavy-tailed feature contaminates training (despite exclusions), QR(0.5) inherits that bias and `R²_CV` may swing to negative — triggering the `DummyRegressor` mean fallback, which in turn produces *constant* residuals, killing `c3_online_rmse` weighting.
 
 ### A1.8 — `R²_CV ≥ 0` ⇒ R² is a meaningful "trust score"
 - **Type**: Engineering
-- **Visibility**: Explicit (PATCH-M1, lines 1303–1316)
+- **Visibility**: Explicit (PATCH-M1; `TimeSeriesSplit` CV inside the QR branch of `train_models.py::train_models`)
 - **Sensitivity**: HIGH (when `WBF_WEIGHT_MODE='trust_discount'`)
 - **Formal**: 5-fold `TimeSeriesSplit` cross-validated `R²` is positive and proportional to predictive quality.
 - **What breaks**: `trust_discount` mode is documented as pathological on RedeRio (5/12 Prophet metrics with `R²<0`). In the complete run `2e12261d55a8f975`, the harmonised ablation reports Full SL-ADS at `F1-cov=0.879` / `FPR=0.965%` while legacy R² trust-discount falls to `F1-cov=0.628` / `FPR=4.39%` and detects only `12/14` attacks at the calibrated operating point. Production mitigation: `WBF_WEIGHT_MODE='uniform'` (default) ignores R². The pathology is well-documented in `docs/audit/trust_discount_r2_analysis.md`.
@@ -173,7 +173,7 @@ invariants, and sidecar validator backward compatibility).
 - **Type**: SL-theoretical
 - **Visibility**: Explicit (PATCH TASK-45, sidecar field `calibration_surrogate_caveat`)
 - **Sensitivity**: **CRITICAL**
-- **Location**: `train_models.py:1929–1944`, `_compute_training_proj_atk` (lines 976–1080); enforcement in `paths.validate_threshold_sidecar_config` (added 2026-05-06).
+- **Location**: `train_models.py::train_models` (sidecar emission) and `train_models.py::_compute_training_proj_atk` (surrogate); enforcement in `paths.py::validate_threshold_sidecar_config` (added 2026-05-06).
 - **Formal**: The legacy generic threshold sidecar is calibrated on a training surrogate, while the deployed chain applies ageing, intra-method WBF, method grouping, inter-method fusion, and optional contextual discount. The two are equal only if these operators are identity transformations on the calibration span.
 - **What breaks**: Any production change to `LAMBDA_DECAY`, `INTER_METHOD_FUSION`, `WBF_WEIGHT_MODE`, `BALANCE_RATIO`, `CD_ALPHA_ATTACK`, or method-group structure after training can invalidate the calibrated `δ`. The sidecar stores the calibration-time configuration and runtime code now checks sensitive mismatches.
 - **2026-05-06 enforcement**: `paths.validate_threshold_sidecar_config` is now invoked automatically by `paths.get_decision_threshold` and **raises `RuntimeError("[A1.9] Threshold sidecar/config mismatch …")`** when any of the five sensitive knobs disagrees between the runtime CONFIG and the calibration sidecar. Tests `test_sensitive_sidecar_config_match_passes` and `test_sensitive_sidecar_config_mismatch_raises` (in `tests/test_config_and_sidecar.py`) lock this in.
@@ -183,17 +183,17 @@ invariants, and sidecar validator backward compatibility).
 
 ### A1.10 — `proj_atk` is a smooth surrogate for `b_atk`
 - **Type**: SL-theoretical
-- **Visibility**: Explicit (lines 953–959)
+- **Visibility**: Explicit (docstring of `train_models.py::_compute_training_proj_atk`)
 - **Sensitivity**: LOW
 - **Formal**: `proj_atk = b_atk + a_atk·u`. With `a_atk` near `1/3`, `proj_atk ≥ b_atk` always; `proj_atk ≥ a_atk` (vacuous opinion). For `u → 0`, `proj_atk → b_atk`.
 - **What breaks**: If `a_atk` is near 1 (very anomalous prior), `proj_atk` is dominated by `u·a_atk` and the threshold detects *uncertainty*, not *belief in attack*. EDP floor `0.005` keeps `a_atk` small; the assumption holds.
 
 ### A1.11 — EDP captures stationary prior on a per-metric basis
 - **Type**: Statistical / Empirical Bayes
-- **Visibility**: Explicit (lines 634–659)
+- **Visibility**: Explicit (docstring of `train_models.py::compute_edp_from_residuals`)
 - **Sensitivity**: MEDIUM
 - **Formal**: `a_safe ≈ E[r_safe/n_window]`, `a_susp ≈ E[r_susp/n_window]`, `a_atk ≈ E[r_atk/n_window]`. Computed on training residuals.
-- **What breaks**: If the test span has a different residual distribution (e.g. seasonal shift), the EDP biases all opinions; in particular, `a_atk` is never updated online (the legacy `adaptive_base_rate` module is archived and *not* loaded — see `compute_opinions_pipeline.py:24–31`). The `EMPIRICAL_PRIOR_FLOOR = 0.005` prevents `a_atk = 0` cold-start, but does not protect against drift.
+- **What breaks**: If the test span has a different residual distribution (e.g. seasonal shift), the EDP biases all opinions; in particular, `a_atk` is never updated online (the legacy `adaptive_base_rate` module is archived and *not* loaded — see the header of `core/opinions_pipeline.py`). The `EMPIRICAL_PRIOR_FLOOR = 0.005` prevents `a_atk = 0` cold-start, but does not protect against drift.
 
 ---
 
@@ -203,20 +203,20 @@ invariants, and sidecar validator backward compatibility).
 - **Type**: Engineering / Data
 - **Visibility**: Explicit (audit constat #2)
 - **Sensitivity**: HIGH
-- **Location**: `compute_evidence.py:153–161`, `train_models.py:1149–1156`, both routed through `preprocessing_utils.preprocess_metrics`.
+- **Location**: `compute_evidence.py::compute_evidence`, `train_models.py::train_models`, both routed through `preprocessing_utils.preprocess_metrics`.
 - **Formal**: limited forward-fill (`limit=NAN_FFILL_LIMIT=10` ≈ 5 min), no `fillna(0)` on network metrics.
 - **What breaks**: A divergent imputation between training and evidence stages would shift residuals → calibrated thresholds invalid. The unique-policy is enforced by sharing `preprocess_metrics`, but `non_metric_cols` get `ffill().fillna(0)` (acceptable) while metric cols only get bounded `ffill`. The split is correct.
 
 ### A2.2 — `split_date` consistency between trained PKL and current `CONFIG`
 - **Type**: Data
-- **Visibility**: Explicit (anti-leak check, lines 184–194)
+- **Visibility**: Explicit (anti-leak check inside `compute_evidence.py::compute_evidence`)
 - **Sensitivity**: **CRITICAL**
 - **Formal**: `models_pkg['_meta_split_date'] == CONFIG['split_date']`.
 - **What breaks**: If a model trained with split `S1` is reused with a config pointing to `S2`, evaluation could (i) include training data in test, leaking labels; (ii) miss real attacks. The check `return` early on mismatch — strict.
 
 ### A2.3 — Window invariant `P + S + N = n_window`
 - **Type**: SL-theoretical (bijection input shape)
-- **Visibility**: Explicit (docstring lines 67–69)
+- **Visibility**: Explicit (module docstring at the top of `compute_evidence.py`)
 - **Sensitivity**: HIGH
 - **Formal**: For each window of size `n`, `Σ_j (p_j + s_j + n_j) = n` because the trapezoidal map outputs convex combinations summing to 1.
 - **What breaks**: Partial windows (last batch, `n < WINDOW_SIZE`) are accepted but with `P+S+N = n < WINDOW_SIZE` (PATCH M-06/F09). The bijection then produces `u = W/(W+n) > W/(W+WINDOW_SIZE)`, which is the SL-correct response (less evidence ⇒ more uncertainty). Documented but worth flagging: per-window `proj_atk` is *not* directly comparable across full vs partial windows.
@@ -225,14 +225,14 @@ invariants, and sidecar validator backward compatibility).
 - **Type**: Engineering
 - **Visibility**: Implicit (piecewise-linear by construction)
 - **Sensitivity**: LOW
-- **Location**: `compute_evidence.py:38–96`
+- **Location**: `compute_evidence.py::compute_instantaneous_evidence`
 - **What breaks**: Continuity at the breakpoints `t_trap, t_susp, t_atk` is enforced by the linear ramps. Monotonicity ensures larger residual ⇒ no smaller `n` evidence.
 
 ### A2.5 — Direction tag on a metric is correct
 - **Type**: Engineering / Domain
 - **Visibility**: Explicit (`CONFIG['ASYMMETRIC_THRESHOLD_METRICS']`)
 - **Sensitivity**: HIGH
-- **Formal**: For each metric, `direction ∈ {pos, neg, both, sym}`. Directional filtering ensures residuals in the "wrong" sense produce `(p,s,n)=(1,0,0)` (line 71–79).
+- **Formal**: For each metric, `direction ∈ {pos, neg, both, sym}`. Directional filtering ensures residuals in the "wrong" sense produce `(p,s,n)=(1,0,0)` (early return inside `compute_evidence.py::compute_instantaneous_evidence`).
 - **What breaks**: Misclassifying `direction='pos'` for a metric where deficits are also anomalous (e.g. SLOWLORIS lowers byte volume) → directional filter zeroes evidence → false negatives. The catalog encodes a `direction='both'` option that emits five-state evidence (`S_pos, N_pos, S_neg, N_neg`) preserving the coarsening identity (Jøsang §3.5.4): `S = S_pos + S_neg`, `N = N_pos + N_neg`.
 
 ---
@@ -241,7 +241,7 @@ invariants, and sidecar validator backward compatibility).
 
 ### A3.1 — Catalog windows are disjoint
 - **Type**: Engineering
-- **Visibility**: Explicit (overlap check, lines 876–893)
+- **Visibility**: Explicit (overlap check in `evidence_level.py::_validate_catalog`)
 - **Sensitivity**: HIGH
 - **Formal**: ∀ i ≠ j, `[t_start_i, t_end_i] ∩ [t_start_j, t_end_j] = ∅`.
 - **What breaks**: Without disjointness, the second injection overwrites the first → multiple labels per window are silently impossible (single-label only). The check raises explicitly.
@@ -277,7 +277,7 @@ QP degrades roughly linearly without collapsing — at σ=0.20 (a perturbation c
 
 ### A3.4 — `α(t)` ramp profile preserves bijection invariant
 - **Type**: SL-theoretical
-- **Visibility**: Explicit (lines 1015–1020 of `evidence_level.py`)
+- **Visibility**: Explicit (ramp-construction block inside `evidence_level.py`)
 - **Sensitivity**: LOW
 - **Formal**: `P_t + S_t + N_t = (1−α_t)·n_window + α_t·n_window = n_window`.
 - **What breaks**: Algebraically guaranteed; numerically safe.
@@ -296,50 +296,50 @@ QP degrades roughly linearly without collapsing — at σ=0.20 (a perturbation c
 
 ### A4.1 — Opinion validity `Σb + u = 1`
 - **Type**: SL-theoretical (Jøsang Def. 3.1)
-- **Visibility**: Explicit (`MultinomialOpinion.__init__`, lines 64–69)
+- **Visibility**: Explicit (`subjective_logic.py::MultinomialOpinion.__init__`)
 - **Sensitivity**: **CRITICAL** (foundation)
 - **Formal**: `b ∈ R³_{≥0}`, `u ∈ [0,1]`, `b_safe + b_susp + b_atk + u = 1`.
-- **Enforcement**: Renormalisation if drift detected (lines 64–66); `ValueError` if violation persists beyond `1e-6`.
+- **Enforcement**: Renormalisation if drift detected inside `__init__`; `ValueError` if violation persists beyond `1e-6`.
 - **What breaks**: All downstream operators rely on this. A bug here would silently produce non-probabilistic outputs.
 
 ### A4.2 — Bijection is well-defined for `r ≥ 0`, `Σr ≥ 0`
 - **Type**: SL-theoretical (Jøsang Def. 3.9)
-- **Visibility**: Explicit (lines 128–199)
+- **Visibility**: Explicit (`subjective_logic.py::evidence_to_opinion`, `::opinion_to_evidence`)
 - **Sensitivity**: HIGH
 - **Formal**: `(r → ω): b_i = r_i/(W+Σr); u = W/(W+Σr)`; `(ω → r): r_i = W·b_i/u`. Cap on dogmatic case (`u<1e-9`) at `r_max = W·1e4`.
 - **What breaks**: Negative residuals (impossible by construction since `(p,s,n)≥0`) would break it. The dogmatic cap may distort downstream WBF when one metric is near-dogmatic — Reconstruction with `R²>0.99` can saturate.
 
 ### A4.3 — Confidence weighting in WBF is bounded and non-negative
 - **Type**: SL-theoretical / Numerical
-- **Visibility**: Explicit (lines 562–580)
+- **Visibility**: Explicit (clamp + degenerate-fallback inside `subjective_logic.py::fusion_wbf_n_sources`)
 - **Sensitivity**: LOW
 - **Formal**: `w_i = max(ext_w_i, 0) · (1−u_i) ≥ 0`; degenerate case `Σw < 1e-12` returns vacuous opinion.
 - **What breaks**: A negative `R²` propagated as `ext_w` would create negative weights — the `max(ext_w_i, 0)` clamp fixes this. Note: in `r2_static` mode this means R²<0 metrics contribute *nothing* to WBF, which is the documented behaviour but may be undesired.
 
 ### A4.4 — Asymmetric escalation conflict is the design choice
 - **Type**: Engineering (deviation from canonical Jøsang Eq. 12.4)
-- **Visibility**: Explicit (lines 247–306, with extensive docstring)
+- **Visibility**: Explicit (`subjective_logic.py::compute_asymmetric_escalation_conflict`, with extensive docstring)
 - **Sensitivity**: **CRITICAL** (controls ageing dynamics)
 - **Formal**: `K_asym = b_prev[safe]·b_curr[atk] + b_prev[atk]·b_curr[safe] + b_prev[safe]·b_curr[susp] + b_prev[susp]·b_curr[atk]`; explicitly omits de-escalation pairs.
 - **What breaks**: Symmetric BCF (canonical) treats every cross-product equally; using asymmetric escalation makes ageing aggressive on attack onsets but slow on recovery. *If* the goal were minimum-time return-to-normal-FPR, the canonical form would be preferable. The function `compute_conflict_degree_canonical` exists for this comparison; production runs use the asymmetric form.
 
 ### A4.5 — `α = 1/K_max` ⇒ exact hard-reset on max conflict
 - **Type**: Engineering / Numerical
-- **Visibility**: Explicit (config.py end-of-file recomputation; lines 332–343 of `opinions_pipeline.py`)
+- **Visibility**: Explicit (config.py end-of-file recomputation; consumption inside `opinions_pipeline.py::compute_opinions`)
 - **Sensitivity**: HIGH
 - **Formal**: For `WINDOW_SIZE=10`, `W=3`, `b_curr_max = 10/13`, `b_prev_max = 20/23`, so `K_max = b_prev_max·b_curr_max = 0.6688`, `α = 1.495`.
 - **What breaks**: The "hard reset" property guarantees `λ_dyn = 0` at the maximum conflict; a different α (e.g., 1.0) only reduces λ partially, leaving residual evidence that biases the next window. Since the threshold `δ` is calibrated on a no-ageing surrogate, the ageing dynamics directly impact realised performance.
 
 ### A4.6 — WBF N-ary is `Eq. 12.27`-faithful, not literal `Eq. 12.22-24`
 - **Type**: SL-theoretical
-- **Visibility**: Explicit (PATCH M-01 / F01 docstring, lines 510–532 of `subjective_logic.py`)
+- **Visibility**: Explicit (PATCH M-01 / F01 docstring of `subjective_logic.py::fusion_wbf_n_sources`)
 - **Sensitivity**: MEDIUM
 - **Formal**: Production WBF averages *evidence vectors* with weights `w_i = ext_w_i · c_i`, then bijection-back. Algebraically equivalent on N=2 with `ext_w` uniform; small float-discrepancies elsewhere.
 - **What breaks**: If a reviewer expects line-by-line correspondence with Eq. 12.22, the N-ary form is *not* that; the codebase ships `fusion_wbf_canonical_two` for that use case. Acknowledged in code comments.
 
 ### A4.7 — CBF independence assumption is *known* to be violated and *consciously* not used by default
 - **Type**: SL-theoretical (Jøsang Theorem 12.2)
-- **Visibility**: Explicit (PATCH M-11/CBF, lines 376–393 of `opinions_pipeline.py`)
+- **Visibility**: Explicit (PATCH M-11/CBF; module-import warning block at the top of `opinions_pipeline.py`)
 - **Sensitivity**: **HIGH** (only matters in CBF ablation runs)
 - **Formal**: CBF evidence accumulation (Theorem 12.2) requires source independence. Prophet and Reconstruction operate on the same raw windows, and the residual-correlation audit reported cross max |rho|=0.915.
 - **What breaks**: In `INTER_METHOD_FUSION='cbf'` runs, evidence is double-counted; for headline numbers the default is `wbf` precisely to avoid this. ABF was implemented and strictly recalibrated because it is theoretically attractive for dependent sources, but it did not outperform WBF on RedeRio. The legacy `cbf` mode is preserved for ablation/comparability.
@@ -347,21 +347,21 @@ QP degrades roughly linearly without collapsing — at σ=0.20 (a perturbation c
 
 ### A4.8 — `BALANCE_RATIO` is an heuristic deviation from Theorem 12.2
 - **Type**: Engineering (explicit deviation)
-- **Visibility**: Explicit (PATCH-m4, lines 345–371 of `opinions_pipeline.py`)
+- **Visibility**: Explicit (PATCH-m4; CBF rebalancing block inside `opinions_pipeline.py::compute_opinions`)
 - **Sensitivity**: MEDIUM
 - **Formal**: Legacy CBF mode can pre-multiply the dominant group's evidence by `1/ratio` before CBF. This knob is not part of the WBF/ABF headline path.
 - **What breaks**: Not theoretically justified; prefer explicit method groups plus `INTER_METHOD_FUSION='wbf'` or `'abf'` for current experiments. RedeRio default `BALANCE_RATIO=1.0` (inactive).
 
 ### A4.9 — Trust discount is probability-sensitive (Def. 14.6)
 - **Type**: SL-theoretical
-- **Visibility**: Explicit (lines 924–945)
+- **Visibility**: Explicit (`subjective_logic.py::apply_trust_discount`)
 - **Sensitivity**: LOW (only in deprecated `trust_discount` mode)
 - **Formal**: `b' = t·b`, `u' = 1 − t·(1−u)`. Constraint `Σb' + u' = 1` algebraically preserved.
 - **What breaks**: Algebraically safe.
 
 ### A4.10 — Contextual discount α-vector is in [0,1]³
 - **Type**: SL-theoretical (Mercier-Quost-Denoeux 2008)
-- **Visibility**: Explicit (lines 948–987, `np.clip(α, 0, 1)`)
+- **Visibility**: Explicit (`subjective_logic.py::apply_contextual_discount`, `np.clip(α, 0, 1)`)
 - **Sensitivity**: MEDIUM
 - **Formal**: `b'_i = α_i · b_i`; `u' = 1 − Σ α_i·b_i`.
 - **What breaks**: Negative α would create negative beliefs; the `np.clip` defends against this. In production `α = [1, 1, CD_ALPHA_ATTACK]` reduces only `b_atk` of the Reconstruction group.
@@ -372,14 +372,14 @@ QP degrades roughly linearly without collapsing — at σ=0.20 (a perturbation c
 
 ### A5.1 — `_target_freq = freq_data × WINDOW_SIZE` matches `compute_evidence` aggregation
 - **Type**: Data alignment
-- **Visibility**: Explicit (lines 437–451)
+- **Visibility**: Explicit (resampling block inside `opinions_pipeline.py::compute_opinions`)
 - **Sensitivity**: HIGH
 - **Formal**: `n_window` slices of `freq_data` form one opinion window.
 - **What breaks**: A mismatch would resample evidence to a frequency where rows no longer satisfy `P+S+N = n_window` ⇒ the bijection becomes inconsistent. The `origin='epoch'` setting is timezone-deterministic.
 
 ### A5.2 — State memory `R_init = a_edp · W` ⇒ initial `proj_atk = a_atk_edp`
 - **Type**: SL-theoretical
-- **Visibility**: Explicit (lines 503–530)
+- **Visibility**: Explicit (state-memory initialisation block inside `opinions_pipeline.py::compute_opinions`)
 - **Sensitivity**: LOW (warm-up only)
 - **Formal**: With `Σa_edp = 1` and `R_init = a_edp · W`, `Σ R_init = W` ⇒ `D = 2W`, `u_init = ½`, `proj_atk_init = a_atk`.
 - **What breaks**: Without this prior, `R_init = 0` would give `u=1` initially and `proj_atk = a_atk` only after warm-up — same end-value, but the convergence dynamics under ageing are different. Acceptable.
@@ -400,7 +400,7 @@ QP degrades roughly linearly without collapsing — at σ=0.20 (a perturbation c
 
 ### A5.5 — `c3_online_rmse` gating on `prev_proj_atk_metric` is per-metric
 - **Type**: Engineering
-- **Visibility**: Explicit (lines 562–567, with Chandola et al. 2009 reference)
+- **Visibility**: Explicit (per-metric RMSE gate inside `opinions_pipeline.py::compute_opinions`, with Chandola et al. 2009 reference)
 - **Sensitivity**: LOW (only in `online_rmse` mode)
 - **Formal**: A per-metric reset prevents one attacking metric from contaminating the RMSE baseline of unrelated metrics.
 - **What breaks**: A global gate would erase RMSE state on every metric whenever any metric attacks — destroying useful baselines. Per-metric is correct.
@@ -411,7 +411,7 @@ QP degrades roughly linearly without collapsing — at σ=0.20 (a perturbation c
 
 ### A6.1 — Naive Bayes-style evidence summation across groups
 - **Type**: Statistical (independence)
-- **Visibility**: Explicit (lines 1080–1088 of `sbn_qualifier.py`)
+- **Visibility**: Explicit (evidence-sum block inside `sbn_qualifier.py::sbn_qualify_row`)
 - **Sensitivity**: MEDIUM
 - **Formal**: `P(g₁,g₂,…|k) ≈ ∏_g P(g|k)` ⇒ `e(k) = Σ_g e_g(k)`.
 - **Known violations** (acknowledged):
@@ -429,14 +429,14 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A6.2 — Geometric-mean group projection minimises KL to pooled opinion
 - **Type**: Statistical (logarithmic opinion pooling)
-- **Visibility**: Explicit (lines 605–651)
+- **Visibility**: Explicit (`sbn_qualifier.py::_compute_group_projected`)
 - **Sensitivity**: LOW
 - **Formal**: `P^g_s = (∏_{m∈g} P^m_s)^{1/|g|}`, renormalised. Genest & Zidek (1986); Aczél & Daróczy (1975).
-- **What breaks**: With one zero in the group, `P^g_s = 0` (multiplicative annihilation) — the codebase handles the missing-metric case explicitly (lines 626–630). For ε-protected projections, that is a non-issue.
+- **What breaks**: With one zero in the group, `P^g_s = 0` (multiplicative annihilation) — the codebase handles the missing-metric case explicitly inside `_compute_group_projected`. For ε-protected projections, that is a non-issue.
 
 ### A6.3 — Conditional opinions `c^{k|g}(s)` are correct expert priors
 - **Type**: Engineering (expert elicitation)
-- **Visibility**: Explicit (manually defined, lines 138–511)
+- **Visibility**: Explicit (manually defined at the top of `sbn_qualifier.py`, via the `SBN_PARAMS` block and per-attack helpers `_strong_anom`, `_mod_anom`, …)
 - **Sensitivity**: **HIGH**
 - **Formal**: Per attack `k`, per group `g`, per state `s`, `c^{k|g}(s) ∈ [0,1]`, `Σ_s c^{k|g}(s) = 1`.
 - **Sources cited**: Sharafaldin 2018 (CIC-IDS2017), Mirsky 2018 (Kitsune), Moustafa 2015 (UNSW-NB15), Rossow 2014 (DNS amp), Hutchins 2011 (kill chain), MITRE ATT&CK, Van Rijswijk-Deij 2014 (NTP BAF).
@@ -448,7 +448,7 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A6.4 — `evidence_scale = 3.0` is empirically sufficient
 - **Type**: Engineering (heuristic)
-- **Visibility**: Explicit (line 1518)
+- **Visibility**: Explicit (default kwarg of `sbn_qualifier.py::_evidence_sum_scores`)
 - **Sensitivity**: MEDIUM
 - **Formal**: Multiplier on `Σ_g max(0, score(k,g) − 1/3)` before bijection.
 - **What breaks**: Smaller scale ⇒ more uncertainty (`u` larger) ⇒ more `Autre_Anomalie`. Larger scale ⇒ over-confident attribution. No theoretical derivation; calibrated empirically against the synthetic catalog.
@@ -456,16 +456,16 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A6.5 — `u_raw > 0.82` ⇒ residual class `Autre_Anomalie`
 - **Type**: Engineering (threshold)
-- **Visibility**: Explicit (line 1537)
+- **Visibility**: Explicit (resolved from `CONFIG['SBN_NOVELTY_U_RAW_THRESHOLD']`, default `0.82`, inside `sbn_qualifier.py::sbn_qualify_row`)
 - **Sensitivity**: MEDIUM
 - **Formal**: `qual_status = autre_anomalie ⇔ u_raw > 0.82`.
-- **Calibration source**: synthetic perfect signatures; the comment at lines 901–904 explicitly states "must recalibrate on real noisy data".
+- **Calibration source**: synthetic perfect signatures; the in-code comment block above the novelty check explicitly states "must recalibrate on real noisy data".
 - **What breaks**: If real attacks generate `u` pattern not captured by synthetic catalog, the residual class either over- or under-fires.
 - **2026-05-06 measurement**: see A6.4 above — the same heatmap covers both knobs. The published value `u_raw_threshold=0.82` sits inside the plateau and the system is stable for any choice in `[0.30, 0.99]` paired with the production `evidence_scale=3.0`.
 
 ### A6.6 — Markov transition matrix encodes meaningful kill-chain priors
 - **Type**: Engineering (expert prior)
-- **Visibility**: Explicit (lines 522–588)
+- **Visibility**: Explicit (`sbn_qualifier.py::_build_transition_matrix`)
 - **Sensitivity**: LOW (only in `--temporal` mode, default OFF for reproducibility)
 - **Formal**: `T[i,j] = P(type_t = j | type_{t−1} = i)`; row-normalised.
 - **What breaks**: With temporal mode disabled (production default), this assumption is dormant.
@@ -476,14 +476,14 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A7.1 — Single fixed `δ` (no on-test threshold tuning)
 - **Type**: Engineering (anti-leakage)
-- **Visibility**: Explicit (PATCH M-03, comment line 14 of `evaluate_injection.py`)
+- **Visibility**: Explicit (PATCH M-03, header docstring of `evaluate_injection.py`)
 - **Sensitivity**: **CRITICAL**
 - **Formal**: `δ = 0.20` (or sidecar value) used unchanged for all reported F1.
 - **What breaks**: Reporting `max_δ F1(δ)` overfits to the test set (Varma & Simon 2006). The `ablation_*_sweeps.csv` files exist for sensitivity, but headline numbers come from the calibrated `δ`.
 
 ### A7.2 — Range-aware AUC buffer `L_max` defaults to median anomaly run length
 - **Type**: Engineering
-- **Visibility**: Explicit (`vus_metrics.py:297–303`)
+- **Visibility**: Explicit (`evaluate/vus_metrics.py`, default `L_max` resolution helper)
 - **Sensitivity**: MEDIUM
 - **Formal**: `L_max = median(anomaly_run_lengths)`.
 - **What breaks**: VUS values depend on `L_max`; reporting requires the realised value. The metric is meant to be range-tolerant, not range-arbitrary.
@@ -498,7 +498,7 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A7.4 — McNemar test assumes paired observations
 - **Type**: Statistical
-- **Visibility**: Explicit (`stats/mcnemar.py:9–10`)
+- **Visibility**: Explicit (header docstring of `stats/mcnemar.py`)
 - **Sensitivity**: LOW (only when comparing two classifiers on the same test set)
 - **Formal**: discordant pair counts `n01, n10`; `χ²_corrected = (|n01 − n10| − 1)² / (n01 + n10)`.
 - **What breaks**: For `n_disc < 25`, the χ² approximation is unreliable; the code falls back to exact binomial (Pembury Smith & Ruxton 2020).
@@ -520,7 +520,7 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A7.7 — `INJECTED_ATTACK_CATALOG` is the *only* source of synthetic ground truth
 - **Type**: Engineering (DRY)
-- **Visibility**: Explicit (PATCH-C1, `evaluate_qualify_injected.py:64–84`)
+- **Visibility**: Explicit (PATCH-C1, `evaluate/evaluate_qualify_injected.py`)
 - **Sensitivity**: HIGH
 - **Formal**: A single canonical list in `config.py` is read by both injector and evaluator.
 - **What breaks**: Local copies that drift would silently mis-label test windows ⇒ wrong F1.
@@ -531,7 +531,7 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A8.1 — `0` is not a valid metric value (zero ≠ absence)
 - **Type**: Data semantics
-- **Visibility**: Explicit (`compute_evidence.py:153–161` comment, PATCH m-07/F25)
+- **Visibility**: Explicit (NaN-policy comment in `compute_evidence.py::compute_evidence`, PATCH m-07/F25)
 - **Sensitivity**: HIGH
 - **Formal**: For network metrics, `value = 0` is a valid measurement (no traffic), distinct from `NaN` (no measurement). `fillna(0)` is forbidden on metric columns.
 - **What breaks**: Naive `fillna(0)` would teach Prophet that absence-of-measurement looks like normal-zero traffic, biasing residuals on non-instrumented periods.
@@ -549,28 +549,28 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A9.1 — `CONFLICT_ALPHA` matches the deployed `WINDOW_SIZE` and `W`
 - **Type**: Numerical / Engineering
-- **Visibility**: Explicit (recomputed at end of `config.py`, lines 2418–2427)
+- **Visibility**: Explicit (recomputed at end of `config.py`, in the dynamic-`CONFLICT_ALPHA` block)
 - **Sensitivity**: HIGH
 - **Formal**: `α = (WINDOW_SIZE+W)·(2·WINDOW_SIZE+W) / (WINDOW_SIZE·2·WINDOW_SIZE)`; for `W=10, K=3`, `α = 1.495`.
 - **What breaks**: Manual override of `CONFLICT_ALPHA` without recomputing breaks the hard-reset property (cf. A4.5).
 
 ### A9.2 — `FPR_TARGET_DECISION` is the operator's chosen FPR budget
 - **Type**: Engineering
-- **Visibility**: Explicit (`config.py:618`)
+- **Visibility**: Explicit (`config.py::FPR_TARGET_DECISION` entry in the `CONFIG` dict)
 - **Sensitivity**: HIGH
 - **Formal**: For RedeRio, `FPR_TARGET_DECISION = 0.001` (1‰); the auto-calibrated `δ` realises this on the calibration set.
 - **What breaks**: Realised FPR on the test set may differ due to (i) calibration-vs-deploy distribution shift, (ii) surrogate-vs-deployed pipeline mismatch (cf. A1.9). Empirical FPR in test should be reported next to the targeted FPR.
 
 ### A9.3 — `RECONST_RULES` capture genuine structural relations
 - **Type**: Engineering (domain-specific)
-- **Visibility**: Explicit (`config.py:247–268`)
+- **Visibility**: Explicit (`config.py::RECONST_RULES` dict)
 - **Sensitivity**: MEDIUM
 - **Formal**: Each `(target, feature)` pair must yield positive `R²_CV` on training (otherwise mean-fallback).
 - **What breaks**: A spurious correlation in the training horizon will produce a confident but unstable QR(0.5) — feed false confidence into the WBF aggregation. The mean-fallback mechanism mitigates by collapsing the metric to `R²=0`.
 
 ### A9.4 — `ACTIVE_METRICS` exhausts the relevant predictive features
 - **Type**: Engineering (feature selection)
-- **Visibility**: Explicit (`config.py:219–239`, RedeRio uses 12 metrics)
+- **Visibility**: Explicit (`config.py::ACTIVE_METRICS` block; RedeRio uses 12 metrics)
 - **Sensitivity**: HIGH
 - **Formal**: The set of metrics on which Prophet is fitted determines coverage of attack types.
 - **What breaks**: Adding a new metric with poor `R²` *can* hurt performance (more dogmatic vacuous opinions in WBF); removing a metric specific to one attack family destroys the qualifier's discriminative power.
@@ -587,7 +587,7 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A10.2 — Pipeline invocation order matches `run_pipeline.py` profile
 - **Type**: Engineering
-- **Visibility**: Explicit (steps definition lines 71–110 of `run_pipeline.py`)
+- **Visibility**: Explicit (steps definitions `_STEPS_REDERIO`, `_STEPS_METR_LA`, `_STEPS_GECCO`, `_STEPS_CESNET` and the `_PIPELINE_BY_DATASET` dispatch in `run_pipeline.py`)
 - **Sensitivity**: HIGH
 - **Formal**: `train → evidence → inject → opinions → eval_injection → qualify_sbn → eval_qualify → ablation → compare_if → audit`. RedeRio is the only profile with `inject` and `audit`; CESNET / METR-LA / GECCO skip injection.
 - **What breaks**: Running `opinions` before `evidence` or after `qualify_sbn` would either crash or operate on stale CSVs. The launcher dispatches them sequentially.
@@ -601,7 +601,7 @@ The strong correlations on attack windows are EXPECTED — a UDP_FLOOD activates
 
 ### A10.4 — `FINAL_SYSTEM_CBF_*` column prefix is historical
 - **Type**: Engineering
-- **Visibility**: Explicit (PATCH TASK-44, `paths.py:96–107`)
+- **Visibility**: Explicit (PATCH TASK-44; helper `paths.py::get_detection_col_fused` and the sidecar `fusion_mode_at_compute_opinions.json`)
 - **Sensitivity**: LOW
 - **Formal**: The prefix `FINAL_SYSTEM_CBF` is kept for backward compatibility with downstream consumers, but the actual fusion may be WBF, ABF, CBF, BCF, projected CCF, MinBF, MaxBF, or hierarchical. The sidecar `fusion_mode_at_compute_opinions.json` records the actual mode.
 - **What breaks**: A reviewer expecting CBF semantics from the column name would be misled; the sidecar must be consulted.

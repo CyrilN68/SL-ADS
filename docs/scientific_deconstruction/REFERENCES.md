@@ -21,26 +21,26 @@
 
 | Concept | Reference | Field | Used by |
 |---|---|---|---|
-| Multinomial opinion `(b, u, a)`, constraint `Σb + u = 1` | Jøsang, A. (2016). *Subjective Logic: A Formalism for Reasoning Under Uncertainty*. Springer. ISBN 978-3-319-42337-1. **Def. 3.1, §3.2.** | Uncertainty reasoning | `core/subjective_logic.py` `MultinomialOpinion` (lines 43–121) |
-| Bijection evidence ↔ opinion | Jøsang (2016) **Def. 3.9.** | Subjective Logic | `evidence_to_opinion`, `opinion_to_evidence` (lines 128–199) |
-| Projected probability `P(x) = b(x) + a(x)·u` | Jøsang (2016) **Eq. 3.23.** | Subjective Logic | `MultinomialOpinion.projected_prob` (line 73), decision rule, EDP, threshold calibration |
-| Confidence `c = 1 − u` | Jøsang (2016) **Eq. 3.43.** | Subjective Logic | `MultinomialOpinion.confidence` (line 76); WBF weighting |
-| Uncertainty maximisation, base-rate-preserving | Jøsang (2016) **§3.6, Eq. 3.27.** | Subjective Logic | `MultinomialOpinion.uncertainty_maximized` (lines 80–118); SBN qualifier L6 |
-| Coarsening / refining of frame of discernment | Jøsang (2016) **§3.5.4.** | Subjective Logic | 5-state ⇋ 3-state directional bookkeeping in `compute_evidence.py` and `opinions_pipeline.py:660–691` |
-| Cumulative Belief Fusion (CBF) | Jøsang (2016) **Def. 12.5, Eq. 12.14.** | Belief fusion | `fusion_cbf` (lines 736–818) |
+| Multinomial opinion `(b, u, a)`, constraint `Σb + u = 1` | Jøsang, A. (2016). *Subjective Logic: A Formalism for Reasoning Under Uncertainty*. Springer. ISBN 978-3-319-42337-1. **Def. 3.1, §3.2.** | Uncertainty reasoning | `core/subjective_logic.py::MultinomialOpinion` |
+| Bijection evidence ↔ opinion | Jøsang (2016) **Def. 3.9.** | Subjective Logic | `core/subjective_logic.py::evidence_to_opinion`, `::opinion_to_evidence` |
+| Projected probability `P(x) = b(x) + a(x)·u` | Jøsang (2016) **Eq. 3.23.** | Subjective Logic | `core/subjective_logic.py::MultinomialOpinion.projected_prob`; decision rule, EDP, threshold calibration |
+| Confidence `c = 1 − u` | Jøsang (2016) **Eq. 3.43.** | Subjective Logic | `core/subjective_logic.py::MultinomialOpinion.confidence`; WBF weighting |
+| Uncertainty maximisation, base-rate-preserving | Jøsang (2016) **§3.6, Eq. 3.27.** | Subjective Logic | `core/subjective_logic.py::MultinomialOpinion.uncertainty_maximized`; SBN qualifier L6 |
+| Coarsening / refining of frame of discernment | Jøsang (2016) **§3.5.4.** | Subjective Logic | 5-state ⇋ 3-state directional bookkeeping in `compute_evidence.py` and `core/opinions_pipeline.py::compute_opinions` |
+| Cumulative Belief Fusion (CBF) | Jøsang (2016) **Def. 12.5, Eq. 12.14.** | Belief fusion | `core/subjective_logic.py::fusion_cbf` |
 | CBF ≡ evidence sum (independence) | Jøsang (2016) **Theorem 12.2, Eq. 12.17.** | Belief fusion | rationale for `BALANCE_RATIO`; documented assumption violation in inter-method fusion default |
 | Averaging Belief Fusion (ABF) | Jøsang & McAnally (2009), Jøsang (2016) **Eq. 12.20**, Wang & Jøsang (2017) multi-source form. | Belief fusion | implemented inter-method option for dependent-source ablation; strict WBF/ABF comparison recorded in TASK-55 |
 | Belief Constraint Fusion (BCF) | Jøsang (2016) **Eq. 12.31**; Dempster-Shafer lineage. | Belief fusion | inter-method ablation/stress-test operator; not default due conflict pathologies |
-| Belief constraint (BCF) conflict | Jøsang (2016) **Eq. 12.4** (multinomial extension). | Belief fusion | `compute_conflict_degree_canonical` (lines 309–344); reference for asymmetric variant `compute_asymmetric_escalation_conflict` |
-| Weighted Belief Fusion (2 sources, opinion-space, Case I/II) | Jøsang (2016) **Def. 12.7, Eq. 12.22-24.** | Belief fusion | `fusion_wbf_canonical_two` (lines 611–729) |
-| Weighted Belief Fusion (N sources, evidence-space) | Jøsang (2016) **§12.5, Eq. 12.27.** | Belief fusion | `fusion_wbf_n_sources` (lines 505–595); intra-method and inter-method WBF in `opinions_pipeline.py:744-785` |
+| Belief constraint (BCF) conflict | Jøsang (2016) **Eq. 12.4** (multinomial extension). | Belief fusion | `core/subjective_logic.py::compute_conflict_degree_canonical`; reference for asymmetric variant `::compute_asymmetric_escalation_conflict` |
+| Weighted Belief Fusion (2 sources, opinion-space, Case I/II) | Jøsang (2016) **Def. 12.7, Eq. 12.22-24.** | Belief fusion | `core/subjective_logic.py::fusion_wbf_canonical_two` |
+| Weighted Belief Fusion (N sources, evidence-space) | Jøsang (2016) **§12.5, Eq. 12.27.** | Belief fusion | `core/subjective_logic.py::fusion_wbf_n_sources`; intra-method and inter-method WBF in `core/opinions_pipeline.py::compute_opinions` |
 | Consensus and Compromise Fusion (CCF) | Wang, Jøsang & Zhang (2017); Jøsang (2018) categories of belief fusion. | Belief fusion | projected experimental `ccf` inter-method mode; research-only until further validation |
 | Minimum/Maximum belief fusion | van der Heijden, Kopp & Kargl (2018) survey of multi-source SL fusion operators. | Belief fusion | `minbf`/`maxbf` ablation stress tests |
-| Probability-sensitive trust discount | Jøsang (2016) **Def. 14.6, Eq. 14.6.** | Trust modelling | `apply_trust_discount` (lines 924–945); deprecated `WBF_WEIGHT_MODE='trust_discount'` |
-| Residual class / reject-style ignorance | Jøsang (2016) **§14.4** + Chow (1970). | Decision theory | `Autre_Anomalie` in `qualify/sbn_qualifier.py` (lines 762, 809, 1018) |
-| Subjective Bayesian Networks (acknowledged proxy) | Jøsang (2016) **Chapter 14** discussion. | SL networks | `qualify/sbn_qualifier.py` (template-based; explicitly *not* a full SBN, line 10 docstring) |
-| Temporal evidence ageing | Jøsang (2016) **§16.2.2, Eq. 16.5** `R_{τ+1} = λ R_τ + r_{τ+1}`. | Temporal SL | `temporal_adaptive_ageing` baseline (lines 417–498) |
-| Contextual discount (α-vector per hypothesis) | Mercier, D., Quost, B., & Denoeux, T. (2006/2008). *Contextual discounting of belief functions*. ECSQARU 2006 / *Information Fusion* 9(2):246–258, 2008. | Belief functions | `apply_contextual_discount` (lines 948–987); used on Reconstruction's `attack` hypothesis |
+| Probability-sensitive trust discount | Jøsang (2016) **Def. 14.6, Eq. 14.6.** | Trust modelling | `core/subjective_logic.py::apply_trust_discount`; deprecated `WBF_WEIGHT_MODE='trust_discount'` |
+| Residual class / reject-style ignorance | Jøsang (2016) **§14.4** + Chow (1970). | Decision theory | `Autre_Anomalie` handling in `qualify/sbn_qualifier.py` |
+| Subjective Bayesian Networks (acknowledged proxy) | Jøsang (2016) **Chapter 14** discussion. | SL networks | `qualify/sbn_qualifier.py` (template-based; explicitly *not* a full SBN — see the module header docstring) |
+| Temporal evidence ageing | Jøsang (2016) **§16.2.2, Eq. 16.5** `R_{τ+1} = λ R_τ + r_{τ+1}`. | Temporal SL | `core/subjective_logic.py::temporal_adaptive_ageing` |
+| Contextual discount (α-vector per hypothesis) | Mercier, D., Quost, B., & Denoeux, T. (2006/2008). *Contextual discounting of belief functions*. ECSQARU 2006 / *Information Fusion* 9(2):246–258, 2008. | Belief functions | `core/subjective_logic.py::apply_contextual_discount`; used on Reconstruction's `attack` hypothesis |
 
 ---
 
@@ -49,9 +49,9 @@
 | Concept | Reference | Field | Used by |
 |---|---|---|---|
 | Tail of i.i.d. sequence converges to GPD | Pickands, J. (1975). *Statistical inference using extreme order statistics*. *Annals of Statistics* 3(1):119–131. <br/>Balkema, A. A., & de Haan, L. (1974). *Residual life time at great age*. *Annals of Probability* 2(5):792–804. | EVT / tail | `_evt_threshold`, `_evt_threshold_pair` justification |
-| GPD MLE via 1D root-finding | Grimshaw, S. D. (1993). *Computing maximum likelihood estimates for the generalized Pareto distribution*. *Technometrics* 35(2):185–191. | EVT | `_grimshaw_fit` (lines 160–273) |
-| Stability plot, validity condition `σ̃ = σ − ξ·t₀ > 0` | Coles, S. (2001). *An Introduction to Statistical Modeling of Extreme Values*. Springer. **§4.2–4.3.** | EVT | `_evt_threshold_pair` validity check (lines 423–451) |
-| Declustering (run-length) | Davison, A. C., & Smith, R. L. (1990). *Models for exceedances over high thresholds*. *JRSS-B* 52(3):393–442. | EVT | `_evt_threshold_pair` (declustering branch, lines 396–411 — disabled in production) |
+| GPD MLE via 1D root-finding | Grimshaw, S. D. (1993). *Computing maximum likelihood estimates for the generalized Pareto distribution*. *Technometrics* 35(2):185–191. | EVT | `train/train_models.py::_grimshaw_fit` |
+| Stability plot, validity condition `σ̃ = σ − ξ·t₀ > 0` | Coles, S. (2001). *An Introduction to Statistical Modeling of Extreme Values*. Springer. **§4.2–4.3.** | EVT | validity check inside `train/train_models.py::_evt_threshold_pair` |
+| Declustering (run-length) | Davison, A. C., & Smith, R. L. (1990). *Models for exceedances over high thresholds*. *JRSS-B* 52(3):393–442. | EVT | declustering branch inside `train/train_models.py::_evt_threshold` — disabled in production |
 | SPOT online algorithm, GPD-quantile formula | Siffer, A., Fouque, P. A., Termier, A., & Largouet, C. (2017). *Anomaly detection in streams with extreme value theory*. *KDD 2017*. | EVT / streaming | `_evt_threshold` Eq. 4 use; `EVT_INIT_QUANTILE = 0.90` is the SPOT-recommended initial level |
 
 ---
@@ -60,13 +60,13 @@
 
 | Concept | Reference | Field | Used by |
 |---|---|---|---|
-| Prophet additive decomposition | Taylor, S. J., & Letham, B. (2018). *Forecasting at scale*. *American Statistician* 72(1):37–45. | Forecasting | `train_models.py:1485–1505` Prophet model fit; `growth='flat'`, daily-conditional Fourier seasonality |
-| Time-series rolling-origin CV | Hyndman, R. J., & Athanasopoulos, G. (2021). *Forecasting: Principles and Practice* (3rd ed.), §3.4 evaluation. | Forecasting | `prophet.diagnostics.cross_validation(initial='14d', period='3d', horizon='1d')` (lines 1520–1526) |
-| Mean-baseline forecast (R²<0 fallback) | Hyndman & Athanasopoulos (2021) **§3.1** — Average method. | Forecasting | `DummyRegressor(strategy='mean')` fallback (lines 1338–1361) |
-| Quantile regression / LAD | Koenker, R., & Bassett, G. (1978). *Regression quantiles*. *Econometrica* 46(1):33–50. | Robust regression | `QuantileRegressor(quantile=0.5, alpha=0, solver='highs')` (line 1297) |
+| Prophet additive decomposition | Taylor, S. J., & Letham, B. (2018). *Forecasting at scale*. *American Statistician* 72(1):37–45. | Forecasting | Prophet model fit in `train/train_models.py::train_models`; `growth='flat'`, daily-conditional Fourier seasonality |
+| Time-series rolling-origin CV | Hyndman, R. J., & Athanasopoulos, G. (2021). *Forecasting: Principles and Practice* (3rd ed.), §3.4 evaluation. | Forecasting | `prophet.diagnostics.cross_validation(initial='14d', period='3d', horizon='1d')` inside `train/train_models.py::train_models` |
+| Mean-baseline forecast (R²<0 fallback) | Hyndman & Athanasopoulos (2021) **§3.1** — Average method. | Forecasting | `DummyRegressor(strategy='mean')` fallback inside `train/train_models.py::train_models` |
+| Quantile regression / LAD | Koenker, R., & Bassett, G. (1978). *Regression quantiles*. *Econometrica* 46(1):33–50. | Robust regression | `QuantileRegressor(quantile=0.5, alpha=0, solver='highs')` inside `train/train_models.py::train_models` |
 | LAD breakdown bound (50 % response, 0 % leverage) | Rousseeuw, P. J., & Leroy, A. M. (1987). *Robust Regression and Outlier Detection*. Wiley. **§3.3.** | Robust statistics | Justifies QR(0.5) for response outliers + `fit_intercept=False` for leverage protection |
 | Dimensional homogeneity (origin = 0 for extensive quantities) | Bridgman, P. W. (1922). *Dimensional Analysis*. Yale UP. | Physics | `RECONST_RULES` `fit_intercept=False` for `bytes ← packets`, `bytes ← entropy_src_port` |
-| Cross-validation removes in-sample bias | Stone, M. (1974). *Cross-validatory choice and assessment of statistical predictions*. *JRSS-B* 36(2):111–147. | Statistics | `TimeSeriesSplit(5)` for QR R² (lines 1309–1316); justifies CV-based trust scores |
+| Cross-validation removes in-sample bias | Stone, M. (1974). *Cross-validatory choice and assessment of statistical predictions*. *JRSS-B* 36(2):111–147. | Statistics | `TimeSeriesSplit(5)` for QR R² inside `train/train_models.py::train_models`; justifies CV-based trust scores |
 | In-sample R² is optimistic | Hastie, Tibshirani, Friedman (2009). *The Elements of Statistical Learning*, §7.10. | Statistics | PATCH-M1 cross-citation in train code |
 | Mean Absolute Scaled Error (MASE) — scale-invariant accuracy metric | Hyndman, R. J., & Koehler, A. B. (2006). *Another look at measures of forecast accuracy*. *International Journal of Forecasting* 22(4):679–688. | Forecasting | `stats/mase.py::compute_mase`; `train/train_models.py` per-Prophet `mase_score` persistence; `WBF_WEIGHT_MODE='mase'` (PATCH D5) |
 | Forecast skill score relative to a reference baseline | Murphy, A. H. (1988). *Skill scores based on the mean square error and their relationships to the correlation coefficient*. *Monthly Weather Review* 116(12):2417–2424. | Forecast verification | `stats/mase.py::mase_to_trust` skill-score interpretation `1 − MASE` (PATCH D5) |
@@ -78,9 +78,9 @@
 
 | Concept | Reference | Field | Used by |
 |---|---|---|---|
-| Dirichlet process / Bayesian non-parametric prior | Ferguson, T. S. (1973). *A Bayesian analysis of some nonparametric problems*. *Annals of Statistics* 1(2):209–230. | Bayesian non-parametrics | `compute_edp_from_residuals` (lines 683–809); EDP storage in `models_pkg['empirical_priors']` |
+| Dirichlet process / Bayesian non-parametric prior | Ferguson, T. S. (1973). *A Bayesian analysis of some nonparametric problems*. *Annals of Statistics* 1(2):209–230. | Bayesian non-parametrics | `train/train_models.py::compute_edp_from_residuals`; EDP storage in `models_pkg['empirical_priors']` |
 | Empirical Bayes prior estimation | Robbins, H. (1955). *An empirical Bayes approach to statistics*. Berkeley Symp. Math. Stat. Prob. 1:157–163. <br/>Robbins, H. (1983). *Some thoughts on empirical Bayes estimation*. *Annals of Statistics* 11(3):713–723. | Statistics | EDP derivation (no shrinkage, marginal frequencies) |
-| Note (deliberate omission) | Comment in code (lines 645–650): "ne pas citer Efron & Morris 1973 ici — cet article porte sur les estimateurs de James-Stein à rétrécissement (shrinkage), non implémenté dans notre EDP." | Statistics | EDP design choice |
+| Note (deliberate omission) | In-code comment inside `train/train_models.py::compute_edp_from_residuals`: "ne pas citer Efron & Morris 1973 ici — cet article porte sur les estimateurs de James-Stein à rétrécissement (shrinkage), non implémenté dans notre EDP." | Statistics | EDP design choice |
 
 ---
 
@@ -88,15 +88,15 @@
 
 | Concept | Reference | Field | Used by |
 |---|---|---|---|
-| Anomaly detection holdout calibration | Ruff, L., et al. (2021). *A unifying review of deep learning-based anomaly detection*. *TPAMI*. | Anomaly detection | `_compute_training_proj_atk` for δ calibration (lines 976–1080) |
+| Anomaly detection holdout calibration | Ruff, L., et al. (2021). *A unifying review of deep learning-based anomaly detection*. *TPAMI*. | Anomaly detection | `train/train_models.py::_compute_training_proj_atk` for δ calibration |
 | Test-set tuning ⇒ leakage | Varma, S., & Simon, R. (2006). *Bias in error estimation when using cross-validation for model selection*. *BMC Bioinformatics* 7:91. | ML methodology | PATCH-C2 / PATCH M-03 anti-leakage rationale |
 | Likelihood ratio = sufficient statistic | Neyman, J., & Pearson, E. S. (1933). *On the problem of the most efficient tests of statistical hypotheses*. *Phil. Trans. R. Soc. A* 231:289–337. | Statistics | `_lr_novelty` rationale in `qualify/sbn_qualifier.py` |
 | Reject option / residual class | Chow, C. K. (1970). *On optimum recognition error and reject tradeoff*. *IEEE Trans. Information Theory* 16(1):41–46. | Pattern recognition | `Autre_Anomalie` residual class |
 | Naive Bayes robustness under moderate dependence | Domingos, P., & Pazzani, M. (1997). *On the optimality of the simple Bayesian classifier under zero-one loss*. *Machine Learning* 29(2-3):103–130. | Classification theory | rationale for evidence summation across groups in `_evidence_sum_scores` |
 | Weight of evidence | Good, I. J. (1952). *Rational decisions*. *JRSS-B* 14:107–114. | Decision theory | underlying score interpretation in qualifier |
-| Logarithmic opinion pooling | Genest, C., & Zidek, J. V. (1986). *Combining probability distributions: A critique and an annotated bibliography*. *Statistical Science* 1(1):114–135. | Forecasting / fusion | `_compute_group_projected` geometric mean (lines 605–651) |
+| Logarithmic opinion pooling | Genest, C., & Zidek, J. V. (1986). *Combining probability distributions: A critique and an annotated bibliography*. *Statistical Science* 1(1):114–135. | Forecasting / fusion | `qualify/sbn_qualifier.py::_compute_group_projected` (geometric mean) |
 | Aczél–Daróczy axiomatic justification of geometric mean | Aczél, J., & Daróczy, Z. (1975). *On Measures of Information and Their Characterizations*. Academic Press. | Information theory | same as Genest-Zidek 1986 |
-| Anomaly detection survey (independence of detectors) | Chandola, V., Banerjee, A., & Kumar, V. (2009). *Anomaly detection: A survey*. *ACM Computing Surveys* 41(3):1–58. | Anomaly detection | per-metric gating in `c3_online_rmse` (`opinions_pipeline.py:562–567`) |
+| Anomaly detection survey (independence of detectors) | Chandola, V., Banerjee, A., & Kumar, V. (2009). *Anomaly detection: A survey*. *ACM Computing Surveys* 41(3):1–58. | Anomaly detection | per-metric `c3_online_rmse` gating inside `core/opinions_pipeline.py::compute_opinions` |
 
 ---
 
@@ -104,7 +104,7 @@
 
 | Concept | Reference | Field | Used by |
 |---|---|---|---|
-| Cyber Kill Chain (attack progression) | Hutchins, E. M., Cloppert, M. J., & Amin, R. M. (2011). *Intelligence-driven computer network defense informed by analysis of adversary campaigns*. *Lockheed Martin Corp.* | Threat modelling | `_build_transition_matrix` Markov priors (`qualify/sbn_qualifier.py:522–588`) |
+| Cyber Kill Chain (attack progression) | Hutchins, E. M., Cloppert, M. J., & Amin, R. M. (2011). *Intelligence-driven computer network defense informed by analysis of adversary campaigns*. *Lockheed Martin Corp.* | Threat modelling | `qualify/sbn_qualifier.py::_build_transition_matrix` (Markov priors) |
 | MITRE ATT&CK | The MITRE Corporation (continuously updated). *MITRE ATT&CK®*. https://attack.mitre.org/ | Threat modelling | qualifier vocabulary: PORT_SCAN (T1046), DATA_EXFIL (T1048) |
 | CIC-IDS2017 dataset (UDP/SYN/HTTP signatures) | Sharafaldin, I., Habibi Lashkari, A., & Ghorbani, A. A. (2018). *Toward generating a new intrusion detection dataset and intrusion traffic characterization*. *ICISSP 2018*. | Datasets | reference for `c^{k\|g}` opinions of UDP_FLOOD_DDOS, SYN_FLOOD_DDOS, HTTP_FLOOD_L7_DDOS |
 | Kitsune (Slowloris, Port Scan profiles) | Mirsky, Y., Doitshman, T., Elovici, Y., & Shabtai, A. (2018). *Kitsune: An ensemble of autoencoders for online network intrusion detection*. *NDSS 2018*. | IDS | reference for SLOWLORIS_DOS, AGGRESSIVE_PORT_SCAN profiles |
@@ -123,21 +123,21 @@
 
 | Concept | Reference | Field | Used by |
 |---|---|---|---|
-| Wilson score interval | Wilson, E. B. (1927). *Probable inference, the law of succession, and statistical inference*. *JASA* 22(158):209–212. | Statistics | `audit/audit_full_dataset.py:78–99`; `evaluate/axelsson_ppv.py:197–223` |
+| Wilson score interval | Wilson, E. B. (1927). *Probable inference, the law of succession, and statistical inference*. *JASA* 22(158):209–212. | Statistics | `audit/audit_full_dataset.py`; `evaluate/axelsson_ppv.py` |
 | Wilson > Wald near 0/1 | Brown, L. D., Cai, T. T., & DasGupta, A. (2002). *Confidence intervals for a binomial proportion and asymptotic expansions*. *Annals of Statistics* 30(1):160–201. | Statistics | rationale for Wilson in proportions CI |
-| BCa bootstrap (2nd-order accurate) | Efron, B. (1987). *Better bootstrap confidence intervals*. *JASA* 82(397):171–185. <br/>Efron, B., & Tibshirani, R. (1993). *An Introduction to the Bootstrap*. CRC. | Resampling | `stats/bootstrap_ci.py:128–150` (`bca`); jackknife acceleration `a` (lines 88–98) |
+| BCa bootstrap (2nd-order accurate) | Efron, B. (1987). *Better bootstrap confidence intervals*. *JASA* 82(397):171–185. <br/>Efron, B., & Tibshirani, R. (1993). *An Introduction to the Bootstrap*. CRC. | Resampling | `stats/bootstrap_ci.py::bootstrap_bca_ci`; jackknife acceleration in the same module |
 | Block bootstrap (preferred for time series; *not* implemented) | Künsch, H. R. (1989). *The jackknife and the bootstrap for general stationary observations*. *Annals of Statistics* 17(3):1217–1241. | Resampling | mentioned in the audit's open-issue list (assumption A7.5) |
-| Newey–West autocorrelation correction | Newey, W. K., & West, K. D. (1987). *A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix*. *Econometrica* 55(3):703–708. | Time-series stats | `stats/residual_correlation.py:121–136` |
+| Newey–West autocorrelation correction | Newey, W. K., & West, K. D. (1987). *A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix*. *Econometrica* 55(3):703–708. | Time-series stats | `stats/residual_correlation.py::newey_west_eff_n` |
 | McNemar's test | McNemar, Q. (1947). *Note on the sampling error of the difference between correlated proportions or percentages*. *Psychometrika* 12(2):153–157. | Categorical statistics | `stats/mcnemar.py` |
-| Continuity correction (small `n_disc`) | Pembury Smith, M. Q. R., & Ruxton, G. D. (2020). *Effective use of the McNemar test*. *Behavioral Ecology and Sociobiology* 74:133. | Statistics | `stats/mcnemar.py:9–10` |
+| Continuity correction (small `n_disc`) | Pembury Smith, M. Q. R., & Ruxton, G. D. (2020). *Effective use of the McNemar test*. *Behavioral Ecology and Sociobiology* 74:133. | Statistics | `stats/mcnemar.py` (header docstring + small-`n` branch) |
 | Variance Inflation Factor (VIF) | Belsley, D. A., Kuh, E., & Welsch, R. E. (1980). *Regression Diagnostics*. Wiley. | Statistics | `stats/residual_correlation.py` (collinearity check) |
-| Matthews correlation coefficient | Matthews, B. W. (1975). *Comparison of the predicted and observed secondary structure of T4 phage lysozyme*. *Biochim. Biophys. Acta* 405(2):442–451. | Classification metric | `evaluate/evaluate_qualify_sbn.py:205–207` |
-| F-β IDS standard | Tavallaee, M., Bagheri, E., Lu, W., & Ghorbani, A. A. (2009). *A detailed analysis of the KDD CUP 99 data set*. *IEEE CISDA*. | IDS evaluation | F2 with β=2 (line 522 of `evaluate_qualify_sbn.py`) |
+| Matthews correlation coefficient | Matthews, B. W. (1975). *Comparison of the predicted and observed secondary structure of T4 phage lysozyme*. *Biochim. Biophys. Acta* 405(2):442–451. | Classification metric | `evaluate/evaluate_qualify_sbn.py::_compute_global_detection_stats` |
+| F-β IDS standard | Tavallaee, M., Bagheri, E., Lu, W., & Ghorbani, A. A. (2009). *A detailed analysis of the KDD CUP 99 data set*. *IEEE CISDA*. | IDS evaluation | F2 with β=2 in `evaluate/evaluate_qualify_sbn.py` |
 | Range-based PR / recall (anomaly time-series) | Tatbul, N., Lee, T. J., Zdonik, S., et al. (2018). *Precision and recall for time series*. *NeurIPS 2018*. | Time-series AD | `vus_metrics.py` |
-| Volume-Under-Surface (VUS) | Paparrizos, J., Boniol, P., Palpanas, T., et al. (2022). *Volume Under the Surface: A new accuracy evaluation measure for time-series anomaly detection*. *VLDB 2022*. | Time-series AD | `vus_metrics.py:214–252` |
+| Volume-Under-Surface (VUS) | Paparrizos, J., Boniol, P., Palpanas, T., et al. (2022). *Volume Under the Surface: A new accuracy evaluation measure for time-series anomaly detection*. *VLDB 2022*. | Time-series AD | `evaluate/vus_metrics.py` |
 | Base-rate fallacy / PPV in IDS | Axelsson, S. (2000). *The base-rate fallacy and the difficulty of intrusion detection*. *ACM TISSEC* 3(3):186–205. | IDS evaluation | `evaluate/axelsson_ppv.py` (full module) |
-| Sun et al. on anomaly thresholding | Sun, S. et al. (cited as "Sun et al. ICML 2024" in `paths.py:51` docstring). | Anomaly detection | rationale for `proj_atk` quantile threshold |
-| Ali et al. on threshold calibration | Ali, S., et al. (cited as "Ali et al. TISSEC 2013" in `paths.py:51` docstring). | IDS | rationale cross-reference |
+| Sun et al. on anomaly thresholding | Sun, S. et al. (cited as "Sun et al. ICML 2024" in the module docstring of `paths.py`). | Anomaly detection | rationale for `proj_atk` quantile threshold |
+| Ali et al. on threshold calibration | Ali, S., et al. (cited as "Ali et al. TISSEC 2013" in the module docstring of `paths.py`). | IDS | rationale cross-reference |
 
 ---
 

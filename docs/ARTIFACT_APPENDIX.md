@@ -33,8 +33,9 @@ SHA-256(CONFIG ∥ git_sha ∥ dataset).
 
 ### A.2.2 Software
 
-* OS : Linux / Windows / macOS (tested on Windows 11, Python 3.13).
-* Python : ≥ 3.10 (3.13 used to produce the published figures).
+* OS : tested on Windows 11. The continuous-integration test suite
+  also exercises Linux and macOS.
+* Python : 3.12 (CI-tested public runtime).
 * Frozen dependencies : ``requirements.txt`` (numpy 2.4.4,
   pandas 3.0.2, scipy 1.17.1, scikit-learn 1.8.0, statsmodels 0.14.6,
   prophet 1.3.0, matplotlib 3.10.9, joblib 1.5.3).
@@ -144,27 +145,16 @@ counterpart.
 ### A.6.4 Experiment E4 — test suite
 
 ```bash
-pytest tests/ -W error::DeprecationWarning
+pytest tests/
 ```
 
-Expected: the full suite passes on a clean machine. The exact count evolves as
-new audit guards are added; use `docs/audit/audit_verification_tracker.md` as
-the authoritative list of required checks. This validates:
-
-* WBF canonical fusion property (bijection, idempotence,
-  asymmetric-confidence, dogmatic-limit) — 8 tests
-* Extended inter-method fusion operators (WBF, ABF, CBF, BCF,
-  projected CCF, MinBF, MaxBF, hierarchical) plus method-group policy
-  guards
-* CBF + ageing + trust + contextual + conflict — 22 tests
-* Adapter contract (4 adapters × schema invariants) — 14 tests
-* CONFIG schema + threshold-sidecar round-trip + fusion-mode
-  sidecar — 39 tests
-* CLI launcher (``--list-steps``, ``--dry-run``, slicing,
-  ``--no-archive``) — 11 tests
-* Edge cases (empty / single-row / all-NaN / degenerate stats) —
-  10 tests
-* Audit-finding non-regression (Phase F/G/I guards and fusion sidecars)
+Expected: the full suite passes on a clean machine (~380 tests in the
+current public release, covering WBF/CBF/ABF/BCF canonical fusion,
+adapter contracts, threshold-sidecar invariants, CLI launcher slicing,
+edge cases, and audit-finding non-regression). The exact count evolves
+as new audit guards are added; use
+`docs/audit/audit_verification_tracker.md` as the authoritative list of
+required checks.
 
 ## A.7 Customization
 

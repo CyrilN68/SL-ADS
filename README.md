@@ -54,7 +54,10 @@ At a high level:
 |   |-- ablation/            # controlled ablation studies
 |   |-- audit/               # scientific audit utilities
 |   |-- stats/               # statistical helpers
-|   `-- calendar/            # optional calendar/regime logic
+|   |-- calendar/            # optional calendar/regime logic
+|   |-- adapters/            # per-dataset I/O adapters (RedeRio / METR-LA / GECCO / CESNET)
+|   |-- compare/             # SL-vs-no-SL and raw-baseline comparison scripts
+|   `-- notebooks/           # Marimo interactive notebooks
 |-- tests/                   # pytest suite
 |-- docs/                    # audit, limitations, methods, and paper notes
 |-- outputs/                 # regenerated run output, git-ignored

@@ -27,14 +27,25 @@ What this launcher does that the old one didn't:
   *current* run (overwritten); ``results/<run_id>/`` is the
   *historical archive* used to diff experiments across iterations.
 
-Pipeline profiles (per-dataset):
+Pipeline profiles (per-dataset, defined in ``_PIPELINE_BY_DATASET`` below):
 
-* RedeRio          : train → evidence → inject → opinions
-                     → eval_injection → qualify_sbn → eval_qualify
-                     → ablation → compare_if → audit
-* METR-LA / GECCO-IoT / CESNET-TimeSeries24 : train → evidence
-                     → opinions → qualify_sbn → eval_qualify
-                     → ablation_labeled → compare_if
+* RedeRio            : train → evidence → inject → opinions
+                       → eval_injection → qualify_sbn → eval_qualify
+                       → ablation → compare_if → audit
+* METR-LA            : train → evidence → opinions → qualify_sbn
+                       → eval_qualify (via ``evaluate_qualify_injected``)
+                       → ablation (via ``run_ablation_labeled``)
+                       → compare_if
+* GECCO-IoT          : train → evidence → opinions → qualify_sbn
+                       → ablation (via ``run_ablation_labeled``)
+                       → compare_if
+* CESNET-TimeSeries24: same as GECCO-IoT.
+
+The non-RedeRio profiles intentionally skip the ``inject`` step
+(``CONFIG['DATASETS_CONFIG'][dataset]['needs_injection'] == False``)
+because METR-LA carries ground-truth labels and GECCO/CESNET use a
+labels-or-pseudo-labels evaluation path.  Only METR-LA runs
+``eval_qualify``; GECCO and CESNET stop at ``ablation``.
 """
 from __future__ import annotations
 

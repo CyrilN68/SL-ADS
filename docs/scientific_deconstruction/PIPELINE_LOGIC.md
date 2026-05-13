@@ -522,14 +522,14 @@ Cross-validates the detector at the episode (not window) level: ensures the syst
 
 ## 11. Profile differences
 
-| profile | injection? | qualifier? | audit? | ablation type | calibration source |
-|---|---|---|---|---|---|
-| **RedeRio** | yes (built-in catalog) | yes | yes | `run_ablation` | hold-out calib split |
-| **METR-LA** | yes (custom catalog) | yes | no | `run_ablation_labeled` | labels in dataset |
-| **GECCO-IoT** | no | yes | no | `run_ablation_labeled` | labels in dataset |
-| **CESNET-TimeSeries24** | no | yes | no | `run_ablation_labeled` | labels in dataset |
+| profile | injection? | qualifier? | eval_qualify? | audit? | ablation type | calibration source |
+|---|---|---|---|---|---|---|
+| **RedeRio** | yes (built-in catalog) | yes | yes (`evaluate_qualify_sbn`) | yes | `run_ablation` | hold-out calib split |
+| **METR-LA** | no | yes | yes (`evaluate_qualify_injected`) | no | `run_ablation_labeled` | labels in dataset |
+| **GECCO-IoT** | no | yes | no | no | `run_ablation_labeled` | labels in dataset |
+| **CESNET-TimeSeries24** | no | yes | no | no | `run_ablation_labeled` | labels in dataset |
 
-`run_pipeline.py` dispatches the appropriate profile from `_PIPELINE_BY_DATASET`.
+`run_pipeline.py` dispatches the appropriate profile from `_PIPELINE_BY_DATASET`. The non-RedeRio profiles skip the `inject` step because they either ship ground-truth labels (METR-LA) or use a labels-or-pseudo-labels evaluation path (GECCO-IoT, CESNET-TimeSeries24).
 
 ---
 

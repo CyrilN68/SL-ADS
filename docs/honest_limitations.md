@@ -506,7 +506,7 @@ true and must be stated together to avoid both over- and
 under-claiming:
 
   1. The catalog is a *closed-world* taxonomy of 13 attack types
-     (Section 3.3, `config.py:946-989`).  Within that closed world,
+     (Section 3.3, `config.py::INJECTED_ATTACK_CATALOG`).  Within that closed world,
      three pairs of attack types share evidence-level signatures.
      The qualifier therefore cannot disambiguate them without
      additional discriminating features (e.g., DNS-port-specific
@@ -723,11 +723,19 @@ This number must be read with two cautions:
     nominally 0.02-0.05 lower (Hastie, Tibshirani & Friedman 2009,
     Ch. 7).
   - It is *reporting-only*.  Following PATCH-C2 (audit reconciliation
-    2026-04-21), the novelty-LR threshold `LR_NOVELTY_THR` is
-    persisted as `None` in the configuration.  No downstream
-    decision uses the LR score to binarise; we expose the AUC for
-    transparency about the *novelty channel* in the qualifier and
-    nothing more.
+    2026-04-21), the novelty-LR threshold is effectively `None` on the
+    operational path.  `evaluate_qualify_sbn` reads it via
+    `CONFIG.get('SBN_LR_NOVELTY_THRESHOLD', None)` and the key is
+    intentionally *not* registered in the `CONFIG` dict, so the lookup
+    returns `None` at runtime and no downstream decision uses the LR
+    score to binarise.  The per-run evaluation summary
+    (`eval_qualify_summary_*.json`) reflects this as
+    `"LR_NOVELTY_THR": null`.  A module-level constant
+    `SBN_LR_NOVELTY_THRESHOLD = 0.71` is kept in `config.py` as an
+    audit reference — it records the historical Youden in-sample
+    cut-point on the test set, which PATCH-C2 disqualified as
+    test-on-test leakage — but it is deliberately not promoted into
+    `CONFIG` and is never read as an operational gate.
 
 This avoids the threshold-leakage concern of Varma & Simon (2006,
 *BMC Bioinformatics* 7) and Japkowicz & Shah (2011) by construction:

@@ -25,22 +25,20 @@ def _(mo):
 
 @app.cell
 def _(pathlib, sys):
-    # PATCH TASK-33 / MIN-01 (audit_tmp, 2026-04-26): align path with current dir.
-    _PROJ_ROOT = pathlib.Path(r"C:\Users\cyril\PycharmProjects\IDS_SL_Bresil_v1")
-    _CURRENT_DIR = _PROJ_ROOT / "actual_ version_claude_autre dataset"
-    _LEGACY_DIR  = _PROJ_ROOT / "actual_version"
-    if _CURRENT_DIR.exists():
-        sys.path.insert(0, str(_CURRENT_DIR))
-    elif _LEGACY_DIR.exists():
-        sys.path.insert(0, str(_LEGACY_DIR))
+    # Resolve the project root from this notebook's own location so the
+    # notebook is portable across machines and OSes.
+    # Layout: <repo_root>/src/sl_ads/notebooks/<this_file>.py
+    _THIS = pathlib.Path(__file__).resolve()
+    _PROJ_ROOT = _THIS.parents[3]
+    _SRC_DIR = _PROJ_ROOT / "src"
+    if str(_SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(_SRC_DIR))
     try:
-        # Phase H: prefer sl_ads.config; fall back to legacy ``config`` shim.
-        try:
-            from sl_ads.config import CONFIG as _CFG
-        except Exception:
-            from config import CONFIG as _CFG
-        _version_name = _CFG["VERSION_NAME"]
-        RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "results" / f"resultats_{_version_name}")
+        from sl_ads.config import CONFIG as _CFG  # noqa: F401
+        # Default to the canonical complete run shipped with the repo.
+        # Replace this path in the UI input below by your own run_id
+        # after running the pipeline locally.
+        RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "results" / "2e12261d55a8f975")
         config_import_ok = True
     except Exception:
         RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "results")

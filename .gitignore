@@ -29,6 +29,7 @@ htmlcov/
 # Editors / IDE
 .idea/
 .vscode/
+.obsidian/
 *.swp
 *.swo
 

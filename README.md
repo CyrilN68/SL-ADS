@@ -6,10 +6,6 @@ Brazilian network trace. The pipeline combines temporal forecasting residuals,
 cross-feature reconstruction residuals, pre-SL evidence triplets, synthetic
 attack injection, Subjective Logic opinion fusion, temporal ageing, and cause
 attribution.
-
-This directory is the current reproducible version of the project. Older files
-outside this directory are development history.
-
 ## What The Pipeline Does
 
 The default full run executes:

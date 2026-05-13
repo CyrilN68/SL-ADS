@@ -27,27 +27,27 @@ def _(mo):
 
 @app.cell
 def _(pathlib, sys):
-    _PROJ_ROOT = pathlib.Path(r"C:\Users\cyril\PycharmProjects\IDS_SL_Bresil_v1")
-    _cfg_dir = _PROJ_ROOT / "actual_ version_claude_autre dataset"
-    if str(_cfg_dir) not in sys.path:
-        sys.path.insert(0, str(_cfg_dir))
-    # Forcer le rechargement si config déjà en cache depuis un autre chemin
+    # Resolve the project root from this notebook's own location so the
+    # notebook is portable across machines and OSes.
+    # Layout: <repo_root>/src/sl_ads/notebooks/<this_file>.py
+    _THIS = pathlib.Path(__file__).resolve()
+    _PROJ_ROOT = _THIS.parents[3]
+    _SRC_DIR = _PROJ_ROOT / "src"
+    if str(_SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(_SRC_DIR))
+    # Force reload in case ``sl_ads.config`` was already cached from a
+    # different sys.path entry.
     import importlib as _importlib
-    # Phase H: prefer the new sl_ads.config module; fall back to legacy
-    # ``config`` shim if running outside the package.
     if "sl_ads.config" in sys.modules:
         _importlib.reload(sys.modules["sl_ads.config"])
-    elif "config" in sys.modules:
-        _importlib.reload(sys.modules["config"])
     try:
-        try:
-            from sl_ads.config import CONFIG as _CFG
-        except Exception:
-            from config import CONFIG as _CFG
-        _version_name = _CFG["VERSION_NAME"]
-        RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "results" / f"resultats_{_version_name}")
+        from sl_ads.config import CONFIG as _CFG  # noqa: F401
+        # Default to the canonical complete run shipped with the repo.
+        # Replace this path in the UI input below by your own run_id
+        # after running the pipeline locally.
+        RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "results" / "2e12261d55a8f975")
         config_import_ok = True
-    except Exception as _e:
+    except Exception:
         RESULTS_DIR_DEFAULT = str(_PROJ_ROOT / "results")
         config_import_ok = False
     return RESULTS_DIR_DEFAULT, config_import_ok

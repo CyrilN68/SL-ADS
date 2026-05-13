@@ -3066,9 +3066,9 @@ _NEW_LABEL_MAP_ENTRIES = {
     "cd_alpha_0.50":               "CD α=0.50 — Reconst semi-fiable attack",
 }
 
-# Chemin absolu projet — source unique pour tous les dashboards Marimo
-MARIMO_BASE_DIR = r"C:\Users\cyril\PycharmProjects\IDS_SL_Bresil_v1"
-
+# Note: Marimo notebooks resolve their project root from ``__file__`` at
+# import time (see ``src/sl_ads/notebooks/*.py``) and do not consume a
+# config-level base-directory constant.
 
 # ==============================================================================
 # PATCH m-07 / F25 — Overrides env var (ablation harness)

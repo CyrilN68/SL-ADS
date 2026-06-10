@@ -243,7 +243,7 @@ Current paper-facing numbers are summarised in
 `docs/review/PUBLICATION_TABLES.md`. The latest complete RedeRio run is
 `current_version/results/2e12261d55a8f975/` and reports catalog/outages-separate
 F1 micro = 0.8666, operator-faithful anomaly F1 micro = 0.8257, MCC = 0.8587,
-14/14 attacks detected, and realised global FPR = 0.965%.
+14/14 labelled anomaly episodes detected, and realised global FPR = 0.965%.
 
 For the original "ADS with SL vs the same ADS without SL" question, see
 `compare_no_sl_fair.py` and `docs/review/PUBLICATION_TABLES.md` §8bis. The

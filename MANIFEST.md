@@ -1,6 +1,8 @@
 # IDS-SL Run Manifest
 <!-- manifest:header:v1 -->
 
+**Historical run log. For current paper-facing claims, use docs/AUDIT_CURRENT_STATUS.md.**
+
 This file is appended automatically by `utils_manifest.py` at the end of every evaluation run (PATCH m-06 / F23).
 Each section below is a single experimental run: timestamp, version descriptor, source CSV, key metrics, environment.
 

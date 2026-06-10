@@ -86,7 +86,7 @@ The raw RedeRio path used by the adapter configuration is:
 
 ## Setup
 
-Python 3.12 is the tested public runtime. On Windows:
+Python 3.13 is the tested public runtime. On Windows:
 
 ```powershell
 python -m venv .venv
@@ -103,6 +103,27 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
+
+## Quick Verification Without Private Data
+
+A reviewer can verify the command-line entry point, pipeline configuration, and regular test suite without access to the private RedeRio/UFRJ trace.
+
+If pytest is not already installed, first install the development extras:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+Then run:
+
+```bash
+python run_pipeline.py --list-steps
+python run_pipeline.py --dry-run
+python -m pytest -q --tb=short
+```
+
+The full default pipeline run (`python run_pipeline.py`) and slow tests require the data files described in the Data Layout section.
+
 
 ## Basic Commands
 

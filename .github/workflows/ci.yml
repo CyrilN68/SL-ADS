@@ -16,7 +16,7 @@ env:
 
 jobs:
   test:
-    name: pytest (Python 3.12 / ${{ matrix.os }})
+    name: pytest (Python 3.13 / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

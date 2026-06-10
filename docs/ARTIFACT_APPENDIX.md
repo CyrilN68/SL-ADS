@@ -11,7 +11,7 @@ from earlier reconstruction-only or partial runs are superseded.
 ## A.1 Abstract
 
 This artifact accompanies *"Subjective-Logic Anomaly Detection for
-Network Telemetry"*.  It is a self-contained Python 3.12 pipeline
+Network Telemetry"*.  It is a self-contained Python 3.13 pipeline
 that reproduces every quantitative claim in the paper from the raw
 RedeRio captures.
 The pipeline produces opinion vectors, calibrated decision thresholds,
@@ -46,7 +46,7 @@ not make the Prophet loop an 8-way parallel job.
 
 * OS : tested on Windows 11. The continuous-integration test suite
   also exercises Linux and macOS.
-* Python : 3.12 (CI-tested public runtime).
+* Python : 3.13 (CI-tested public runtime).
 * Frozen dependencies : ``requirements.txt`` (numpy 2.4.4,
   pandas 3.0.2, scipy 1.17.1, scikit-learn 1.8.0, statsmodels 0.14.6,
   prophet 1.3.0, matplotlib 3.10.9, joblib 1.5.3).
@@ -76,7 +76,7 @@ attack traffic generated).
 
 ```bash
 git clone https://github.com/CyrilN68/SL-ADS
-cd sl_ads
+cd SL-ADS
 python -m venv .venv && source .venv/bin/activate   # or .\.venv\Scripts\activate
 pip install -r requirements.txt
 pytest tests/                              # full suite should PASS on a clean machine
